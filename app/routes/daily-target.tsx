@@ -13,6 +13,8 @@ interface DailyTarget {
   targetPercentage: number;
   minimumTrades: number;
   riskRewardRatio: number;
+  preferredLeverage: number;
+  marginUtilizationRate: number; // percentage of funds to use for perps
 }
 
 interface AdvancedSettings {
@@ -26,6 +28,8 @@ export default function DailyTarget() {
     targetPercentage: 10,
     minimumTrades: 2,
     riskRewardRatio: 2,
+    preferredLeverage: 10,
+    marginUtilizationRate: 80,
   });
   const [walletAddress] = useLocalStorage<string | null>("hyperliquid-wallet", null);
   const [advancedSettings] = useLocalStorage<AdvancedSettings>("advancedSettings", {
@@ -36,12 +40,12 @@ export default function DailyTarget() {
   const [tempTarget, setTempTarget] = React.useState(target);
   const hlService = new HyperliquidService();
   const { balance, dailyStartBalance } = useBalanceUpdater(walletAddress);
-  const { currentStreak, longestStreak, updateDailyProgress, getStreakEmoji, streakThreshold } = useStreakTracking();
+  const { currentStreak, longestStreak, updateDailyProgress, getStreakEmoji, streakThreshold, todayStatus } = useStreakTracking();
 
   const handleSave = () => {
     setTarget(tempTarget);
     toast.success("Daily target saved successfully!", {
-      description: `Target: ${tempTarget.targetPercentage}% with ${tempTarget.minimumTrades} trades, RR: 1:${tempTarget.riskRewardRatio}`
+      description: `Target: ${tempTarget.targetPercentage}% with ${tempTarget.minimumTrades} trades, RR: 1:${tempTarget.riskRewardRatio}, Leverage: ${tempTarget.preferredLeverage}x`
     });
   };
 
@@ -100,9 +104,19 @@ export default function DailyTarget() {
                     <p className="text-sm text-muted-foreground">Best streak</p>
                   </div>
                 </div>
-                {currentStreak > 0 && progressPercentage < streakThreshold && (
+                {!todayStatus.currentlyAboveThreshold && (
                   <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-900/20 rounded text-xs text-amber-800 dark:text-amber-200">
-                    ⚠️ Reach {streakThreshold}% of your target to maintain streak!
+                    ⚠️ Reach {streakThreshold}% of your target to qualify for today's streak!
+                  </div>
+                )}
+                {todayStatus.currentlyAboveThreshold && todayStatus.droppedBelowThreshold && (
+                  <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-xs text-blue-800 dark:text-blue-200">
+                    ℹ️ You dropped below {streakThreshold}% earlier but recovered - finish above {streakThreshold}% to maintain streak!
+                  </div>
+                )}
+                {todayStatus.currentlyAboveThreshold && !todayStatus.droppedBelowThreshold && (
+                  <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded text-xs text-green-800 dark:text-green-200">
+                    ✅ Great job! Stay above {streakThreshold}% to extend your streak!
                   </div>
                 )}
               </CardContent>
@@ -249,6 +263,38 @@ export default function DailyTarget() {
                   </p>
                 </div>
 
+                <div>
+                  <label className="text-sm font-medium">Preferred Leverage</label>
+                  <Input
+                    type="number"
+                    value={tempTarget.preferredLeverage}
+                    onChange={(e) => setTempTarget({ ...tempTarget, preferredLeverage: parseFloat(e.target.value) || 10 })}
+                    placeholder="10"
+                    min="1"
+                    max="100"
+                    step="1"
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Default leverage for your trades (1x-100x)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Margin Utilization (%)</label>
+                  <Input
+                    type="number"
+                    value={tempTarget.marginUtilizationRate}
+                    onChange={(e) => setTempTarget({ ...tempTarget, marginUtilizationRate: parseFloat(e.target.value) || 80 })}
+                    placeholder="80"
+                    min="10"
+                    max="100"
+                    step="5"
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Percentage of funds to allocate for perpetual trading
+                  </p>
+                </div>
+
                 <Button onClick={handleSave} className="w-full">
                   Save Target
                 </Button>
@@ -326,9 +372,10 @@ export default function DailyTarget() {
                     // Adjust profit target to account for fees
                     const profitAfterFees = profitPerTrade + (profitPerTrade / 0.01) * totalFeePercentage;
                     
-                    // Calculate required leverage for 1% move (adjusted for fees)
-                    const requiredLeverage = (profitAfterFees / startOfDayValue) / 0.01;
-                    const positionSize = profitAfterFees / 0.01; // Position size needed
+                    // Use user's preferred leverage
+                    const leverage = target.preferredLeverage;
+                    const positionSize = profitAfterFees / 0.01; // Position size needed for 1% move
+                    const marginRequired = positionSize / leverage;
                     
                     // Risk calculations including fees
                     const riskPerTrade = profitPerTrade / target.riskRewardRatio;
@@ -349,8 +396,8 @@ export default function DailyTarget() {
                         <div className="grid gap-3">
                           <div className="grid grid-cols-2 gap-3">
                             <div className="p-3 bg-muted rounded-lg">
-                              <p className="text-xs text-muted-foreground">Required Leverage</p>
-                              <p className="text-lg font-bold">{requiredLeverage.toFixed(1)}x</p>
+                              <p className="text-xs text-muted-foreground">Using Leverage</p>
+                              <p className="text-lg font-bold">{leverage}x</p>
                             </div>
                             <div className="p-3 bg-muted rounded-lg">
                               <p className="text-xs text-muted-foreground">Position Size</p>
@@ -369,7 +416,8 @@ export default function DailyTarget() {
                           <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                             <p className="text-xs font-medium mb-1">Trade Setup Summary</p>
                             <ul className="text-xs space-y-0.5 text-muted-foreground">
-                              <li>• Leverage: <span className="font-semibold text-foreground">{requiredLeverage.toFixed(1)}x</span></li>
+                              <li>• Leverage: <span className="font-semibold text-foreground">{leverage}x</span></li>
+                              <li>• Margin required: <span className="font-semibold text-foreground">{hlService.formatUsdValue(marginRequired)}</span></li>
                               <li>• Target: <span className="font-semibold text-green-600">+1%</span> ({hlService.formatUsdValue(profitPerTrade)} net)</li>
                               <li>• Stop: <span className="font-semibold text-red-600">-{stopLossPercentage.toFixed(2)}%</span></li>
                               <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> round trip</li>
@@ -379,7 +427,7 @@ export default function DailyTarget() {
 
                           <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
                             <p className="text-xs text-amber-800 dark:text-amber-200">
-                              <strong>⚠️ Risk:</strong> {requiredLeverage.toFixed(1)}x leverage means {(100 / requiredLeverage).toFixed(2)}% 
+                              <strong>⚠️ Risk:</strong> {leverage}x leverage means {(100 / leverage).toFixed(2)}% 
                               move against you = liquidation
                             </p>
                           </div>
@@ -395,6 +443,92 @@ export default function DailyTarget() {
                     );
                   })()}
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Fund Allocation Card */}
+          {startOfDayValue > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Fund Allocation</CardTitle>
+                <CardDescription>
+                  Capital distribution between perpetuals and spot
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {(() => {
+                  const totalFunds = startOfDayValue;
+                  const perpAllocation = totalFunds * (target.marginUtilizationRate / 100);
+                  const spotAvailable = totalFunds - perpAllocation;
+                  
+                  // Calculate margin requirements
+                  const positionSizePerTrade = profitPerTrade / 0.01; // Assuming 1% move target
+                  const marginPerTrade = positionSizePerTrade / target.preferredLeverage;
+                  const totalMarginNeeded = marginPerTrade * target.minimumTrades;
+                  const marginUtilization = (totalMarginNeeded / perpAllocation) * 100;
+
+                  return (
+                    <div className="space-y-4">
+                      <div className="grid gap-3">
+                        <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                          <span className="text-sm text-muted-foreground">Total Account Value</span>
+                          <span className="font-semibold">{hlService.formatUsdValue(totalFunds)}</span>
+                        </div>
+
+                        <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                          <span className="text-sm font-medium">Perpetual Allocation ({target.marginUtilizationRate}%)</span>
+                          <span className="font-semibold text-blue-600 dark:text-blue-400">
+                            {hlService.formatUsdValue(perpAllocation)}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                          <span className="text-sm font-medium">Available for Spot</span>
+                          <span className="font-semibold text-green-600 dark:text-green-400">
+                            {hlService.formatUsdValue(spotAvailable)}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="pt-3 border-t">
+                        <p className="text-sm font-medium mb-2">Margin Analysis</p>
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Margin per trade</span>
+                            <span>{hlService.formatUsdValue(marginPerTrade)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Total margin for {target.minimumTrades} trades</span>
+                            <span>{hlService.formatUsdValue(totalMarginNeeded)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Margin utilization</span>
+                            <span className={marginUtilization > 90 ? "text-amber-600" : ""}>
+                              {marginUtilization.toFixed(1)}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {marginUtilization > 100 && (
+                        <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                          <p className="text-sm text-red-800 dark:text-red-200">
+                            ⚠️ Warning: Your trading plan requires more margin than allocated. 
+                            Consider increasing margin utilization or reducing position sizes.
+                          </p>
+                        </div>
+                      )}
+
+                      <div className="p-3 bg-muted rounded-lg">
+                        <p className="text-xs text-muted-foreground">
+                          <strong>Note:</strong> Keeping {(100 - target.marginUtilizationRate).toFixed(0)}% in spot 
+                          allows you to build long-term positions while maintaining trading capital.
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })()}
               </CardContent>
             </Card>
           )}

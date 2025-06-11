@@ -6,6 +6,7 @@ interface StreakData {
   longestStreak: number;
   lastUpdateDate: string;
   dailyProgress: Record<string, number>; // date -> progress percentage
+  dailyMinimum: Record<string, number>; // date -> minimum progress reached during the day
 }
 
 interface AdvancedSettings {
@@ -20,6 +21,7 @@ export function useStreakTracking() {
     longestStreak: 0,
     lastUpdateDate: "",
     dailyProgress: {},
+    dailyMinimum: {},
   });
 
   const [advancedSettings] = useLocalStorage<AdvancedSettings>("advancedSettings", {
@@ -34,6 +36,11 @@ export function useStreakTracking() {
     setStreakData((prev) => {
       const newData = { ...prev };
       newData.dailyProgress[today] = progressPercentage;
+      
+      // Track minimum progress for the day
+      if (newData.dailyMinimum[today] === undefined || progressPercentage < newData.dailyMinimum[today]) {
+        newData.dailyMinimum[today] = progressPercentage;
+      }
 
       // Check if we need to update streak
       if (prev.lastUpdateDate !== today) {
@@ -41,49 +48,28 @@ export function useStreakTracking() {
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = yesterday.toISOString().split("T")[0];
 
-        // Check if yesterday met the threshold
+        // Check if yesterday met the threshold (only check final progress)
         const yesterdayProgress = prev.dailyProgress[yesterdayStr] || 0;
+        const yesterdaySuccess = yesterdayProgress >= advancedSettings.streakThreshold;
         
         if (prev.lastUpdateDate === yesterdayStr) {
           // Continuing from yesterday
-          if (yesterdayProgress >= advancedSettings.streakThreshold) {
-            // Yesterday was successful, check today
-            if (progressPercentage >= advancedSettings.streakThreshold) {
-              newData.currentStreak = prev.currentStreak + 1;
-            } else {
-              // Today hasn't met threshold yet, keep the streak
-              newData.currentStreak = prev.currentStreak;
-            }
+          if (yesterdaySuccess) {
+            // Yesterday was successful, increment streak
+            newData.currentStreak = prev.currentStreak + 1;
           } else {
-            // Yesterday failed, reset or check today
-            if (progressPercentage >= advancedSettings.streakThreshold) {
-              newData.currentStreak = 1;
-            } else {
-              newData.currentStreak = 0;
-            }
-          }
-        } else if (prev.lastUpdateDate) {
-          // Gap in tracking, check if today meets threshold
-          if (progressPercentage >= advancedSettings.streakThreshold) {
-            newData.currentStreak = 1;
-          } else {
+            // Yesterday failed, reset streak
             newData.currentStreak = 0;
           }
+        } else if (prev.lastUpdateDate) {
+          // Gap in tracking, reset streak
+          newData.currentStreak = 0;
         } else {
           // First time tracking
-          if (progressPercentage >= advancedSettings.streakThreshold) {
-            newData.currentStreak = 1;
-          }
+          newData.currentStreak = 0;
         }
 
         newData.lastUpdateDate = today;
-      } else {
-        // Same day update
-        if (progressPercentage >= advancedSettings.streakThreshold && prev.currentStreak === 0) {
-          newData.currentStreak = 1;
-        } else if (progressPercentage < advancedSettings.streakThreshold && prev.currentStreak > 0) {
-          // Don't reset streak during the day, only at day boundary
-        }
       }
 
       // Update longest streak
@@ -111,6 +97,18 @@ export function useStreakTracking() {
     return "🏆";
   };
 
+  const getTodayStatus = () => {
+    const today = new Date().toISOString().split("T")[0];
+    const todayMinimum = streakData.dailyMinimum[today];
+    const todayProgress = streakData.dailyProgress[today] || 0;
+    
+    return {
+      currentlyAboveThreshold: todayProgress >= advancedSettings.streakThreshold,
+      droppedBelowThreshold: todayMinimum !== undefined && todayMinimum < advancedSettings.streakThreshold,
+      currentProgress: todayProgress
+    };
+  };
+
   return {
     currentStreak: streakData.currentStreak,
     longestStreak: streakData.longestStreak,
@@ -118,5 +116,6 @@ export function useStreakTracking() {
     resetStreak,
     getStreakEmoji,
     streakThreshold: advancedSettings.streakThreshold,
+    todayStatus: getTodayStatus(),
   };
 }
