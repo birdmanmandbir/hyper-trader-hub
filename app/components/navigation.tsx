@@ -37,7 +37,7 @@ export function Navigation({ nextUpdateIn, isUpdating, isConnected }: Navigation
                         <NavigationMenuLink
                           className={cn(
                             navigationMenuTriggerStyle(),
-                            isActive && "bg-black text-white dark:bg-white dark:text-black"
+                            isActive && "bg-black text-white hover:bg-black hover:text-white dark:bg-white dark:text-black dark:hover:bg-white dark:hover:text-black"
                           )}
                         >
                           {item.label}
@@ -71,7 +71,7 @@ export function Navigation({ nextUpdateIn, isUpdating, isConnected }: Navigation
                       className={cn(
                         navigationMenuTriggerStyle(),
                         "w-full justify-start",
-                        isActive && "bg-black text-white dark:bg-white dark:text-black"
+                        isActive && "bg-black text-white hover:bg-black hover:text-white dark:bg-white dark:text-black dark:hover:bg-white dark:hover:text-black"
                       )}
                     >
                       {item.label}
