@@ -1,4 +1,4 @@
-import { Link, useLocation } from "react-router";
+import { NavLink } from "react-router";
 import {
   NavigationMenu,
   NavigationMenuItem,
@@ -15,8 +15,6 @@ interface NavigationProps {
 }
 
 export function Navigation({ nextUpdateIn, isUpdating, isConnected }: NavigationProps) {
-  const location = useLocation();
-
   const navItems = [
     { path: "/", label: "Overview" },
     { path: "/daily-target", label: "Daily Target" },
@@ -32,11 +30,10 @@ export function Navigation({ nextUpdateIn, isUpdating, isConnected }: Navigation
             
             <NavigationMenu className="hidden md:block">
               <NavigationMenuList>
-                {navItems.map((item) => {
-                  const isActive = location.pathname === item.path;
-                  return (
-                    <NavigationMenuItem key={item.path}>
-                      <Link to={item.path}>
+                {navItems.map((item) => (
+                  <NavigationMenuItem key={item.path}>
+                    <NavLink to={item.path}>
+                      {({ isActive }) => (
                         <NavigationMenuLink
                           className={cn(
                             navigationMenuTriggerStyle(),
@@ -45,10 +42,10 @@ export function Navigation({ nextUpdateIn, isUpdating, isConnected }: Navigation
                         >
                           {item.label}
                         </NavigationMenuLink>
-                      </Link>
-                    </NavigationMenuItem>
-                  );
-                })}
+                      )}
+                    </NavLink>
+                  </NavigationMenuItem>
+                ))}
               </NavigationMenuList>
             </NavigationMenu>
           </div>
@@ -66,11 +63,10 @@ export function Navigation({ nextUpdateIn, isUpdating, isConnected }: Navigation
 
         <NavigationMenu className="md:hidden pb-2">
           <NavigationMenuList className="flex-col w-full">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              return (
-                <NavigationMenuItem key={item.path} className="w-full">
-                  <Link to={item.path} className="w-full">
+            {navItems.map((item) => (
+              <NavigationMenuItem key={item.path} className="w-full">
+                <NavLink to={item.path} className="w-full">
+                  {({ isActive }) => (
                     <NavigationMenuLink
                       className={cn(
                         navigationMenuTriggerStyle(),
@@ -80,10 +76,10 @@ export function Navigation({ nextUpdateIn, isUpdating, isConnected }: Navigation
                     >
                       {item.label}
                     </NavigationMenuLink>
-                  </Link>
-                </NavigationMenuItem>
-              );
-            })}
+                  )}
+                </NavLink>
+              </NavigationMenuItem>
+            ))}
           </NavigationMenuList>
         </NavigationMenu>
       </div>
