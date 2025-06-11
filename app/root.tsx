@@ -6,6 +6,10 @@ import {
   Scripts,
   ScrollRestoration,
 } from "react-router";
+import { Toaster } from "sonner";
+import { Navigation } from "~/components/navigation";
+import { useLocalStorage } from "~/hooks/useLocalStorage";
+import { useBalanceUpdater } from "~/hooks/useBalanceUpdater";
 
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -42,7 +46,34 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
-  return <Outlet />;
+  const [walletAddress] = useLocalStorage<string | null>("hyperliquid-wallet", null);
+  const { nextUpdateIn, isUpdating } = useBalanceUpdater(walletAddress);
+
+  return (
+    <>
+      <div className="min-h-screen bg-background">
+        <Navigation 
+          nextUpdateIn={nextUpdateIn}
+          isUpdating={isUpdating}
+          isConnected={!!walletAddress}
+        />
+        <Outlet />
+      </div>
+      <Toaster 
+        position="bottom-right"
+        toastOptions={{
+          duration: 3000,
+          style: {
+            background: 'white',
+            color: 'black',
+            border: '1px solid #e5e7eb',
+          },
+          className: 'sonner-toast',
+          descriptionClassName: 'text-gray-600',
+        }}
+      />
+    </>
+  );
 }
 
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
