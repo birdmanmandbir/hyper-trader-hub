@@ -30,12 +30,8 @@ jobs:
         run: bun run build
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: hyper-trader-hub
-          directory: build/client
-          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
-          # Optional: specify deployment branch
-          branch: main
+          command: pages deploy build/client --project-name=hyper-trader-hub --commit-dirty=true
