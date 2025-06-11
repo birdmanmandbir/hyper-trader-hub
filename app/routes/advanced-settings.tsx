@@ -8,24 +8,26 @@ import { useLocalStorage } from "~/hooks/useLocalStorage";
 interface AdvancedSettings {
   takerFee: number; // in percentage, e.g., 0.04
   makerFee: number; // in percentage, e.g., 0.02
+  streakThreshold: number; // in percentage, e.g., 90
 }
 
 export default function AdvancedSettings() {
   const [settings, setSettings] = useLocalStorage<AdvancedSettings>("advancedSettings", {
     takerFee: 0.04,
     makerFee: 0.012,
+    streakThreshold: 90,
   });
   const [tempSettings, setTempSettings] = React.useState(settings);
 
   const handleSave = () => {
     setSettings(tempSettings);
     toast.success("Advanced settings saved successfully!", {
-      description: `Taker fee: ${tempSettings.takerFee}%, Maker fee: ${tempSettings.makerFee}%`
+      description: `Taker fee: ${tempSettings.takerFee}%, Maker fee: ${tempSettings.makerFee}%, Streak threshold: ${tempSettings.streakThreshold}%`
     });
   };
 
   const handleReset = () => {
-    const defaults = { takerFee: 0.04, makerFee: 0.012 };
+    const defaults = { takerFee: 0.04, makerFee: 0.012, streakThreshold: 90 };
     setTempSettings(defaults);
     setSettings(defaults);
     toast.info("Settings reset to defaults");
@@ -74,6 +76,25 @@ export default function AdvancedSettings() {
               <p className="text-sm text-muted-foreground mt-1">
                 Fee charged when providing liquidity (limit orders)
               </p>
+            </div>
+
+            <div className="pt-6 border-t">
+              <h3 className="font-semibold mb-4">Streak Settings</h3>
+              <div>
+                <label className="text-sm font-medium">Streak Threshold (%)</label>
+                <Input
+                  type="number"
+                  value={tempSettings.streakThreshold}
+                  onChange={(e) => setTempSettings({ ...tempSettings, streakThreshold: parseFloat(e.target.value) || 90 })}
+                  placeholder="90"
+                  min="1"
+                  max="100"
+                  step="1"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Minimum percentage of daily target required to maintain streak
+                </p>
+              </div>
             </div>
 
             <div className="flex gap-2">

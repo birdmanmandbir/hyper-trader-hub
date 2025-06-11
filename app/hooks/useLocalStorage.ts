@@ -10,11 +10,29 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
     try {
       // Get from local storage by key
       const item = window.localStorage.getItem(key);
-      // Parse stored json or if none return initialValue
-      return item ? JSON.parse(item) : initialValue;
+      if (!item) {
+        // No stored value, save and return initialValue
+        window.localStorage.setItem(key, JSON.stringify(initialValue));
+        return initialValue;
+      }
+      
+      const parsed = JSON.parse(item);
+      
+      // If initialValue is an object, merge with defaults to handle missing properties
+      if (typeof initialValue === 'object' && initialValue !== null && !Array.isArray(initialValue)) {
+        const merged = { ...initialValue, ...parsed };
+        // Check if we added any new properties
+        if (JSON.stringify(merged) !== JSON.stringify(parsed)) {
+          window.localStorage.setItem(key, JSON.stringify(merged));
+        }
+        return merged as T;
+      }
+      
+      return parsed;
     } catch (error) {
       // If error also return initialValue
       console.log(error);
+      window.localStorage.setItem(key, JSON.stringify(initialValue));
       return initialValue;
     }
   });

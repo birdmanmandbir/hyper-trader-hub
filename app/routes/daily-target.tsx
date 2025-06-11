@@ -6,6 +6,7 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { useBalanceUpdater } from "~/hooks/useBalanceUpdater";
+import { useStreakTracking } from "~/hooks/useStreakTracking";
 import { HyperliquidService } from "~/lib/hyperliquid";
 
 interface DailyTarget {
@@ -17,6 +18,7 @@ interface DailyTarget {
 interface AdvancedSettings {
   takerFee: number;
   makerFee: number;
+  streakThreshold: number;
 }
 
 export default function DailyTarget() {
@@ -29,10 +31,12 @@ export default function DailyTarget() {
   const [advancedSettings] = useLocalStorage<AdvancedSettings>("advancedSettings", {
     takerFee: 0.04,
     makerFee: 0.012,
+    streakThreshold: 90,
   });
   const [tempTarget, setTempTarget] = React.useState(target);
   const hlService = new HyperliquidService();
   const { balance, dailyStartBalance } = useBalanceUpdater(walletAddress);
+  const { currentStreak, longestStreak, updateDailyProgress, getStreakEmoji, streakThreshold } = useStreakTracking();
 
   const handleSave = () => {
     setTarget(tempTarget);
@@ -58,6 +62,13 @@ export default function DailyTarget() {
   const progressPercentage = dailyTargetAmount > 0 ? (dailyProfit / dailyTargetAmount) * 100 : 0;
   const isTargetAchieved = progressPercentage >= 100;
 
+  // Update streak tracking
+  React.useEffect(() => {
+    if (balance && dailyStartBalance) {
+      updateDailyProgress(progressPercentage);
+    }
+  }, [progressPercentage, balance, dailyStartBalance]);
+
   return (
     <div className="container mx-auto p-6">
       <div className="mb-6">
@@ -67,6 +78,37 @@ export default function DailyTarget() {
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Left Column - Daily Progress and Target Settings */}
         <div className="space-y-6">
+          {/* Streak Card */}
+          {balance && dailyStartBalance && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between">
+                  <span className="text-lg">Achievement Streak</span>
+                  <span className="text-2xl">{getStreakEmoji(currentStreak)}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-3xl font-bold">{currentStreak} days</p>
+                    <p className="text-sm text-muted-foreground">
+                      Days achieving ≥{streakThreshold}% of target
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-semibold text-muted-foreground">{longestStreak} days</p>
+                    <p className="text-sm text-muted-foreground">Best streak</p>
+                  </div>
+                </div>
+                {currentStreak > 0 && progressPercentage < streakThreshold && (
+                  <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-900/20 rounded text-xs text-amber-800 dark:text-amber-200">
+                    ⚠️ Reach {streakThreshold}% of your target to maintain streak!
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Daily Progress Card */}
           {balance && dailyStartBalance && (
             <Card>
@@ -90,12 +132,27 @@ export default function DailyTarget() {
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700 relative overflow-hidden">
                       {progressPercentage >= 0 ? (
-                        <div 
-                          className={`h-3 rounded-full transition-all duration-500 ${
-                            isTargetAchieved ? 'bg-green-600' : 'bg-blue-600'
-                          }`}
-                          style={{ width: `${Math.min(progressPercentage, 100)}%` }}
-                        />
+                        progressPercentage > 100 ? (
+                          <div 
+                            className="h-3 rounded-full transition-all duration-500"
+                            style={{ 
+                              width: '100%',
+                              background: `linear-gradient(90deg, 
+                                #10b981 0%, 
+                                #3b82f6 25%, 
+                                #8b5cf6 50%, 
+                                #ec4899 75%, 
+                                #f59e0b 100%)`
+                            }}
+                          />
+                        ) : (
+                          <div 
+                            className={`h-3 rounded-full transition-all duration-500 ${
+                              isTargetAchieved ? 'bg-green-600' : 'bg-blue-600'
+                            }`}
+                            style={{ width: `${progressPercentage}%` }}
+                          />
+                        )
                       ) : (
                         <div 
                           className="h-3 bg-red-600 rounded-full transition-all duration-500"
