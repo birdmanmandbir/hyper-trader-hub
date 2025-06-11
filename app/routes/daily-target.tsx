@@ -39,7 +39,7 @@ export default function DailyTarget() {
   });
   const [tempTarget, setTempTarget] = React.useState(target);
   const hlService = new HyperliquidService();
-  const { balance, dailyStartBalance } = useBalanceUpdater(walletAddress);
+  const { balance, dailyStartBalance, storedBalance } = useBalanceUpdater(walletAddress);
   const { currentStreak, longestStreak, updateDailyProgress, getStreakEmoji, streakThreshold, todayStatus } = useStreakTracking();
 
   const handleSave = () => {
@@ -458,15 +458,26 @@ export default function DailyTarget() {
               </CardHeader>
               <CardContent>
                 {(() => {
-                  const totalFunds = startOfDayValue;
-                  const perpAllocation = totalFunds * (target.marginUtilizationRate / 100);
-                  const spotAvailable = totalFunds - perpAllocation;
+                  // Use values from the balance hook
+                  const totalFunds = currentAccountValue;
+                  const stakingValue = balance?.stakingValue || 0;
+                  const spotValue = balance?.spotValue || 0;
+                  const perpsValue = balance?.perpsValue || 0;
                   
-                  // Calculate margin requirements
-                  const positionSizePerTrade = profitPerTrade / 0.01; // Assuming 1% move target
+                  // Withdrawable is the free USDC that can be used
+                  const withdrawable = parseFloat(balance?.rawData?.withdrawable || '0');
+                  
+                  // Calculate margin requirements for trading plan (with fees)
+                  const totalFeePercentage = advancedSettings.takerFee * 2 / 100; // Convert to decimal
+                  const profitAfterFees = profitPerTrade + (profitPerTrade / 0.01) * totalFeePercentage;
+                  const positionSizePerTrade = profitAfterFees / 0.01; // Position size needed for 1% move
                   const marginPerTrade = positionSizePerTrade / target.preferredLeverage;
-                  const totalMarginNeeded = marginPerTrade * target.minimumTrades;
-                  const marginUtilization = (totalMarginNeeded / perpAllocation) * 100;
+                  const totalMarginNeeded = marginPerTrade; // Only need margin for 1 trade at a time
+                  
+                  // Apply margin utilization rate to withdrawable funds
+                  const maxMarginAllowed = withdrawable * (target.marginUtilizationRate / 100);
+                  const actualMarginToReserve = Math.min(totalMarginNeeded, maxMarginAllowed);
+                  const availableForSpot = withdrawable - actualMarginToReserve;
 
                   return (
                     <div className="space-y-4">
@@ -476,18 +487,52 @@ export default function DailyTarget() {
                           <span className="font-semibold">{hlService.formatUsdValue(totalFunds)}</span>
                         </div>
 
-                        <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                          <span className="text-sm font-medium">Perpetual Allocation ({target.marginUtilizationRate}%)</span>
-                          <span className="font-semibold text-blue-600 dark:text-blue-400">
-                            {hlService.formatUsdValue(perpAllocation)}
-                          </span>
-                        </div>
+                        {stakingValue > 0 && (
+                          <div className="flex justify-between items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                            <span className="text-sm font-medium">Staking Value</span>
+                            <span className="font-semibold text-purple-600 dark:text-purple-400">
+                              {hlService.formatUsdValue(stakingValue)}
+                            </span>
+                          </div>
+                        )}
 
-                        <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                          <span className="text-sm font-medium">Available for Spot</span>
-                          <span className="font-semibold text-green-600 dark:text-green-400">
-                            {hlService.formatUsdValue(spotAvailable)}
-                          </span>
+                        {spotValue > 0 && (
+                          <div className="flex justify-between items-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
+                            <span className="text-sm font-medium">Spot Holdings</span>
+                            <span className="font-semibold text-orange-600 dark:text-orange-400">
+                              {hlService.formatUsdValue(spotValue)}
+                            </span>
+                          </div>
+                        )}
+
+                        {perpsValue > 0 && (
+                          <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                            <span className="text-sm font-medium">Perps Value</span>
+                            <span className="font-semibold text-blue-600 dark:text-blue-400">
+                              {hlService.formatUsdValue(perpsValue)}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="pt-3 border-t">
+                          <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
+                            <span className="text-sm text-muted-foreground">Withdrawable (Free USDC)</span>
+                            <span className="font-semibold">{hlService.formatUsdValue(withdrawable)}</span>
+                          </div>
+
+                          <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg mt-3">
+                            <span className="text-sm font-medium">Reserved for Trading</span>
+                            <span className="font-semibold text-blue-600 dark:text-blue-400">
+                              {hlService.formatUsdValue(actualMarginToReserve)}
+                            </span>
+                          </div>
+
+                          <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border-2 border-green-200 dark:border-green-800 mt-3">
+                            <span className="text-sm font-medium">Available for Spot</span>
+                            <span className="font-semibold text-green-600 dark:text-green-400">
+                              {hlService.formatUsdValue(Math.max(0, availableForSpot))}
+                            </span>
+                          </div>
                         </div>
                       </div>
 
@@ -495,35 +540,47 @@ export default function DailyTarget() {
                         <p className="text-sm font-medium mb-2">Margin Analysis</p>
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Margin per trade</span>
-                            <span>{hlService.formatUsdValue(marginPerTrade)}</span>
+                            <span className="text-muted-foreground">Position size per trade</span>
+                            <span>{hlService.formatUsdValue(positionSizePerTrade)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Total margin for {target.minimumTrades} trades</span>
+                            <span className="text-muted-foreground">Margin needed per trade</span>
                             <span>{hlService.formatUsdValue(totalMarginNeeded)}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-muted-foreground">Margin utilization</span>
-                            <span className={marginUtilization > 90 ? "text-amber-600" : ""}>
-                              {marginUtilization.toFixed(1)}%
-                            </span>
+                            <span className="text-muted-foreground">Max margin allowed ({target.marginUtilizationRate}%)</span>
+                            <span>{hlService.formatUsdValue(maxMarginAllowed)}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Currently in use</span>
+                            <span>{hlService.formatUsdValue(parseFloat(balance?.rawData?.totalMarginUsed || "0"))}</span>
                           </div>
                         </div>
                       </div>
 
-                      {marginUtilization > 100 && (
+                      {totalMarginNeeded > maxMarginAllowed && (
+                        <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                          <p className="text-sm text-amber-800 dark:text-amber-200">
+                            ⚠️ Your trading plan requires {hlService.formatUsdValue(totalMarginNeeded)} margin, but your {target.marginUtilizationRate}% limit allows only {hlService.formatUsdValue(maxMarginAllowed)}.
+                            Consider increasing margin utilization rate or reducing position size.
+                          </p>
+                        </div>
+                      )}
+                      
+                      {withdrawable < totalMarginNeeded && (
                         <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
                           <p className="text-sm text-red-800 dark:text-red-200">
-                            ⚠️ Warning: Your trading plan requires more margin than allocated. 
-                            Consider increasing margin utilization or reducing position sizes.
+                            ⚠️ Insufficient funds: You need {hlService.formatUsdValue(totalMarginNeeded - withdrawable)} more withdrawable funds.
                           </p>
                         </div>
                       )}
 
                       <div className="p-3 bg-muted rounded-lg">
                         <p className="text-xs text-muted-foreground">
-                          <strong>Note:</strong> Keeping {(100 - target.marginUtilizationRate).toFixed(0)}% in spot 
-                          allows you to build long-term positions while maintaining trading capital.
+                          <strong>How it works:</strong> The system reserves {target.marginUtilizationRate}% of your withdrawable funds for trading.
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          The remaining {100 - target.marginUtilizationRate}% stays available for spot purchases, ensuring you don't over-leverage.
                         </p>
                       </div>
                     </div>
