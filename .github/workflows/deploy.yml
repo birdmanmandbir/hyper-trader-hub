@@ -35,3 +35,23 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: pages deploy build/client --project-name=hyper-trader-hub --commit-dirty=true
+
+      - name: Send Telegram notification
+        if: always()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          format: markdown
+          message: |
+            *🚀 Hyper Trader Hub Deployment*
+            
+            Repository: `${{ github.repository }}`
+            Branch: `${{ github.ref_name }}`
+            Status: *${{ job.status }}* ${{ job.status == 'success' && '✅' || '❌' }}
+            
+            Commit: `${{ github.sha }}`
+            Author: ${{ github.actor }}
+            Message: ${{ github.event.head_commit.message }}
+            
+            ${{ job.status == 'success' && '🔗 [View Deployment](https://hyper-trader-hub.pages.dev)' || '' }}

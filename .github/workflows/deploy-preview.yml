@@ -51,3 +51,22 @@ jobs:
               repo: context.repo.repo,
               body: `### 🚀 Preview Deployed!\n\nYour preview is available at: ${{ steps.deployment.outputs.url }}`
             })
+
+      - name: Send Telegram notification
+        if: always()
+        uses: appleboy/telegram-action@master
+        with:
+          to: ${{ secrets.TELEGRAM_CHAT_ID }}
+          token: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          format: markdown
+          message: |
+            *🔍 Hyper Trader Hub Preview*
+            
+            PR: #${{ github.event.pull_request.number }} - ${{ github.event.pull_request.title }}
+            Status: *${{ job.status }}* ${{ job.status == 'success' && '✅' || '❌' }}
+            
+            Author: ${{ github.event.pull_request.user.login }}
+            Branch: `${{ github.event.pull_request.head.ref }}`
+            
+            ${{ job.status == 'success' && format('🔗 [View Preview]({0})', steps.deployment.outputs.url) || '' }}
+            ${{ job.status == 'success' && format('🔗 [View PR](https://github.com/{0}/pull/{1})', github.repository, github.event.pull_request.number) || '' }}
