@@ -189,6 +189,9 @@ export default function DailyTarget() {
                       <p className="text-muted-foreground">Daily P&L</p>
                       <p className={`font-semibold ${dailyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {dailyProfit >= 0 ? '+' : ''}{hlService.formatUsdValue(dailyProfit)}
+                        <span className="text-sm ml-1">
+                          ({dailyProfit >= 0 ? '+' : ''}{((dailyProfit / startOfDayValue) * 100).toFixed(2)}%)
+                        </span>
                       </p>
                     </div>
                     <div className="space-y-1">
