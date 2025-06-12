@@ -7,6 +7,7 @@ interface StreakData {
   lastUpdateDate: string;
   dailyProgress: Record<string, number>; // date -> progress percentage
   dailyMinimum: Record<string, number>; // date -> minimum progress reached during the day
+  unconfirmedStreak: number; // potential streak if today ends successfully
 }
 
 interface AdvancedSettings {
@@ -30,6 +31,7 @@ export function useStreakTracking() {
     lastUpdateDate: "",
     dailyProgress: {},
     dailyMinimum: {},
+    unconfirmedStreak: 0,
   });
 
   const [advancedSettings] = useLocalStorage<AdvancedSettings>("advancedSettings", {
@@ -50,7 +52,7 @@ export function useStreakTracking() {
         newData.dailyMinimum[today] = progressPercentage;
       }
 
-      // Check if we need to update streak
+      // Check if we need to update streak (new day)
       if (prev.lastUpdateDate !== today) {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
@@ -63,8 +65,8 @@ export function useStreakTracking() {
         if (prev.lastUpdateDate === yesterdayStr) {
           // Continuing from yesterday
           if (yesterdaySuccess) {
-            // Yesterday was successful, increment streak
-            newData.currentStreak = prev.currentStreak + 1;
+            // Yesterday was successful, confirm the unconfirmed streak
+            newData.currentStreak = prev.unconfirmedStreak;
           } else {
             // Yesterday failed, reset streak
             newData.currentStreak = 0;
@@ -73,11 +75,21 @@ export function useStreakTracking() {
           // Gap in tracking, reset streak
           newData.currentStreak = 0;
         } else {
-          // First time tracking
+          // First time tracking - streak starts at 0
           newData.currentStreak = 0;
         }
 
         newData.lastUpdateDate = today;
+      }
+
+      // Update unconfirmed streak based on today's progress
+      const todayProgress = progressPercentage;
+      if (todayProgress >= advancedSettings.streakThreshold) {
+        // Today is going well, unconfirmed streak would be current + 1
+        newData.unconfirmedStreak = newData.currentStreak + 1;
+      } else {
+        // Today is below threshold, unconfirmed streak stays at current
+        newData.unconfirmedStreak = newData.currentStreak;
       }
 
       // Update longest streak
@@ -93,6 +105,7 @@ export function useStreakTracking() {
     setStreakData((prev) => ({
       ...prev,
       currentStreak: 0,
+      unconfirmedStreak: 0,
     }));
   };
 
@@ -119,6 +132,7 @@ export function useStreakTracking() {
 
   return {
     currentStreak: streakData.currentStreak,
+    unconfirmedStreak: streakData.unconfirmedStreak,
     longestStreak: streakData.longestStreak,
     updateDailyProgress,
     resetStreak,

@@ -39,8 +39,8 @@ export default function DailyTarget() {
   });
   const [tempTarget, setTempTarget] = React.useState(target);
   const hlService = new HyperliquidService();
-  const { balance, dailyStartBalance, storedBalance } = useBalanceUpdater(walletAddress);
-  const { currentStreak, longestStreak, updateDailyProgress, getStreakEmoji, streakThreshold, todayStatus } = useStreakTracking();
+  const { balance, dailyStartBalance } = useBalanceUpdater(walletAddress);
+  const { currentStreak, unconfirmedStreak, longestStreak, updateDailyProgress, getStreakEmoji, streakThreshold, todayStatus } = useStreakTracking();
 
   const handleSave = () => {
     setTarget(tempTarget);
@@ -88,15 +88,15 @@ export default function DailyTarget() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center justify-between">
                   <span className="text-lg">Achievement Streak</span>
-                  <span className="text-2xl">{getStreakEmoji(currentStreak)}</span>
+                  <span className="text-2xl">{getStreakEmoji(unconfirmedStreak)}</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-3xl font-bold">{currentStreak} days</p>
+                    <p className="text-3xl font-bold">{unconfirmedStreak} days</p>
                     <p className="text-sm text-muted-foreground">
-                      Days achieving ≥{streakThreshold}% of target
+                      {unconfirmedStreak > currentStreak ? 'Potential streak (confirm tomorrow)' : `Confirmed: ${currentStreak} days`}
                     </p>
                   </div>
                   <div className="text-right">
