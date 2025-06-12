@@ -15,6 +15,14 @@ interface AdvancedSettings {
   streakThreshold: number;
 }
 
+// Helper function to get local date string in YYYY-MM-DD format
+function getLocalDateString(date: Date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export function useStreakTracking() {
   const [streakData, setStreakData] = useLocalStorage<StreakData>("streakData", {
     currentStreak: 0,
@@ -31,7 +39,7 @@ export function useStreakTracking() {
   });
 
   const updateDailyProgress = (progressPercentage: number) => {
-    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+    const today = getLocalDateString(); // YYYY-MM-DD format in local timezone
     
     setStreakData((prev) => {
       const newData = { ...prev };
@@ -46,7 +54,7 @@ export function useStreakTracking() {
       if (prev.lastUpdateDate !== today) {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
-        const yesterdayStr = yesterday.toISOString().split("T")[0];
+        const yesterdayStr = getLocalDateString(yesterday);
 
         // Check if yesterday met the threshold (only check final progress)
         const yesterdayProgress = prev.dailyProgress[yesterdayStr] || 0;
@@ -98,7 +106,7 @@ export function useStreakTracking() {
   };
 
   const getTodayStatus = () => {
-    const today = new Date().toISOString().split("T")[0];
+    const today = getLocalDateString();
     const todayMinimum = streakData.dailyMinimum[today];
     const todayProgress = streakData.dailyProgress[today] || 0;
     
