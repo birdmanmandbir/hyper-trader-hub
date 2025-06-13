@@ -105,3 +105,40 @@ The `~/*` alias is configured in both TypeScript and Vite configs. Always use `~
 - Spot balances
 - Historical P&L data for calendar view
 - Daily goal tracking (stored locally)
+
+## Useful Hooks and Utilities
+
+### useLocalStorage Hook
+The project includes a custom `useLocalStorage` hook at `app/hooks/useLocalStorage.ts` that should be used for all localStorage operations:
+
+```typescript
+const [value, setValue] = useLocalStorage<T>(key: string, defaultValue: T)
+```
+
+Features:
+- Type-safe with TypeScript generics
+- SSR-safe (checks for window availability)
+- Handles JSON parsing/stringifying automatically
+- Supports functional updates like useState
+- Merges objects with defaults to handle missing properties
+
+Example usage:
+```typescript
+const [walletAddress, setWalletAddress] = useLocalStorage<string | null>("hyperliquid-wallet", null);
+const [target, setTarget] = useLocalStorage<DailyTarget>("dailyTarget", defaultTarget);
+```
+
+### Common localStorage Keys
+- `hyperliquid-wallet` - User's wallet address
+- `dailyTarget` - Daily trading targets
+- `advancedSettings` - Advanced settings configuration
+- `balance-data` - Cached balance information
+- `daily-start-balance` - Balance at start of day
+- `trading-entry-checklist` - Entry checklist items
+- `trading-exit-checklist` - Exit checklist items
+
+### Best Practices
+1. **Always use the useLocalStorage hook** instead of direct localStorage access
+2. Use kebab-case for localStorage keys
+3. Provide sensible default values
+4. Handle potential parsing errors in the hook (already implemented)

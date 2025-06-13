@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
 import { Card } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { RotateCcw, LogIn, LogOut } from "lucide-react";
+import { useLocalStorage } from "~/hooks/useLocalStorage";
 
 interface ChecklistItem {
   id: string;
@@ -40,29 +40,15 @@ const defaultExitChecklist: ChecklistItem[] = [
 ];
 
 export default function ChecklistPage() {
-  const [entryChecklist, setEntryChecklist] = useState<ChecklistItem[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(ENTRY_CHECKLIST_KEY);
-      return saved ? JSON.parse(saved) : defaultEntryChecklist;
-    }
-    return defaultEntryChecklist;
-  });
+  const [entryChecklist, setEntryChecklist] = useLocalStorage<ChecklistItem[]>(
+    ENTRY_CHECKLIST_KEY,
+    defaultEntryChecklist
+  );
 
-  const [exitChecklist, setExitChecklist] = useState<ChecklistItem[]>(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem(EXIT_CHECKLIST_KEY);
-      return saved ? JSON.parse(saved) : defaultExitChecklist;
-    }
-    return defaultExitChecklist;
-  });
-
-  useEffect(() => {
-    localStorage.setItem(ENTRY_CHECKLIST_KEY, JSON.stringify(entryChecklist));
-  }, [entryChecklist]);
-
-  useEffect(() => {
-    localStorage.setItem(EXIT_CHECKLIST_KEY, JSON.stringify(exitChecklist));
-  }, [exitChecklist]);
+  const [exitChecklist, setExitChecklist] = useLocalStorage<ChecklistItem[]>(
+    EXIT_CHECKLIST_KEY,
+    defaultExitChecklist
+  );
 
   const toggleEntryItem = (id: string) => {
     setEntryChecklist(prev =>
