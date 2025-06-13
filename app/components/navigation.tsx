@@ -18,6 +18,7 @@ export function Navigation({ nextUpdateIn, isUpdating, isConnected }: Navigation
   const navItems = [
     { path: "/", label: "Overview" },
     { path: "/daily-target", label: "Daily Target" },
+    { path: "/tips", label: "Trading Tips" },
     { path: "/advanced-settings", label: "Settings" },
   ];
 
