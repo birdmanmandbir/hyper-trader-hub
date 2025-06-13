@@ -455,7 +455,7 @@ export default function DailyTarget() {
                               <li>• Margin required: <span className="font-semibold text-foreground">{hlService.formatUsdValue(marginRequired)}</span></li>
                               <li>• Target: <span className="font-semibold text-green-600">+1%</span> ({hlService.formatUsdValue(profitPerTrade)} net)</li>
                               <li>• Stop: <span className="font-semibold text-red-600">-{stopLossPercentage.toFixed(2)}%</span></li>
-                              <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> round trip</li>
+                              <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> round trip ({hlService.formatUsdValue(feeCost)})</li>
                               <li>• Effective RR: <span className="font-semibold text-foreground">1:{effectiveRR.toFixed(2)}</span></li>
                             </ul>
                           </div>
