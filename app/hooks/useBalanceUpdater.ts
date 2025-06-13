@@ -14,6 +14,7 @@ interface StoredBalance {
 interface DailyStartBalance {
   date: string; // YYYY-MM-DD format
   accountValue: number;
+  perpsValue: number; // Added to track perps-specific value
 }
 
 const UPDATE_INTERVAL = 30000; // 30 seconds
@@ -83,7 +84,8 @@ export function useBalanceUpdater(walletAddress: string | null) {
       if (!dailyStartBalance || dailyStartBalance.date !== todayDate) {
         setDailyStartBalance({
           date: todayDate,
-          accountValue
+          accountValue,
+          perpsValue
         });
       }
     } catch (error) {

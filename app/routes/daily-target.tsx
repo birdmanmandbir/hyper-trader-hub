@@ -39,26 +39,26 @@ export default function DailyTarget() {
     });
   };
 
-  const currentAccountValue = balance?.accountValue || 0;
-  const startOfDayValue = dailyStartBalance?.accountValue || currentAccountValue;
+  const currentPerpsValue = balance?.perpsValue || 0;
+  const startOfDayPerpsValue = dailyStartBalance?.perpsValue || dailyStartBalance?.accountValue || currentPerpsValue; // Fallback to accountValue for backward compatibility
   
   const calculateProfitPerTrade = () => {
-    if (startOfDayValue === 0 || tempTarget.minimumTrades === 0) return 0;
-    const dailyTargetAmount = startOfDayValue * (tempTarget.targetPercentage / 100);
+    if (startOfDayPerpsValue === 0 || tempTarget.minimumTrades === 0) return 0;
+    const dailyTargetAmount = startOfDayPerpsValue * (tempTarget.targetPercentage / 100);
     return dailyTargetAmount / tempTarget.minimumTrades;
   };
 
   const profitPerTrade = calculateProfitPerTrade();
   
   // Calculate progress
-  const dailyProfit = currentAccountValue - startOfDayValue;
-  const dailyTargetAmount = startOfDayValue * (target.targetPercentage / 100);
+  const dailyProfit = currentPerpsValue - startOfDayPerpsValue;
+  const dailyTargetAmount = startOfDayPerpsValue * (target.targetPercentage / 100);
   const progressPercentage = dailyTargetAmount > 0 ? (dailyProfit / dailyTargetAmount) * 100 : 0;
   const isTargetAchieved = progressPercentage >= 100;
   
   // Check if loss threshold is hit
   const lossThresholdHit = progressPercentage < -(advancedSettings.lossThreshold);
-  const actualLossPercentage = (dailyProfit / startOfDayValue) * 100;
+  const actualLossPercentage = (dailyProfit / startOfDayPerpsValue) * 100;
 
   // Update streak tracking
   React.useEffect(() => {
@@ -171,95 +171,6 @@ export default function DailyTarget() {
             />
           )}
 
-          {/* Daily Progress Card */}
-          {balance && dailyStartBalance && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <span>Today's Progress</span>
-                  <span className="text-2xl">{isTargetAchieved ? "🎯" : "📈"}</span>
-                </CardTitle>
-                <CardDescription>
-                  {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Progress</span>
-                      <span className={dailyProfit >= 0 ? (isTargetAchieved ? "text-green-600 font-semibold" : "") : "text-red-600 font-semibold"}>
-                        {progressPercentage.toFixed(1)}%
-                      </span>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700 relative overflow-hidden">
-                      {progressPercentage >= 0 ? (
-                        progressPercentage > 100 ? (
-                          <div 
-                            className="h-3 rounded-full transition-all duration-500"
-                            style={{ 
-                              width: '100%',
-                              background: `linear-gradient(90deg, 
-                                #10b981 0%, 
-                                #3b82f6 25%, 
-                                #8b5cf6 50%, 
-                                #ec4899 75%, 
-                                #f59e0b 100%)`
-                            }}
-                          />
-                        ) : (
-                          <div 
-                            className={`h-3 rounded-full transition-all duration-500 ${
-                              isTargetAchieved ? 'bg-green-600' : 'bg-blue-600'
-                            }`}
-                            style={{ width: `${progressPercentage}%` }}
-                          />
-                        )
-                      ) : (
-                        <div 
-                          className="h-3 bg-red-600 rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(Math.abs(progressPercentage), 100)}%` }}
-                        />
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Start of Day</p>
-                      <p className="font-semibold">{hlService.formatUsdValue(startOfDayValue)}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Current Value</p>
-                      <p className="font-semibold">{hlService.formatUsdValue(currentAccountValue)}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Daily P&L</p>
-                      <p className={`font-semibold ${dailyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {dailyProfit >= 0 ? '+' : ''}{hlService.formatUsdValue(dailyProfit)}
-                        <span className="text-sm ml-1">
-                          ({dailyProfit >= 0 ? '+' : ''}{((dailyProfit / startOfDayValue) * 100).toFixed(2)}%)
-                        </span>
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Target</p>
-                      <p className="font-semibold">{hlService.formatUsdValue(dailyTargetAmount)}</p>
-                    </div>
-                  </div>
-
-                  {isTargetAchieved && (
-                    <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                      <p className="text-green-600 dark:text-green-400 font-semibold">
-                        🎉 Congratulations! Daily target achieved!
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           <Card>
             <CardHeader>
               <CardTitle>Set Your Daily Trading Goals</CardTitle>
@@ -280,7 +191,7 @@ export default function DailyTarget() {
                     step="0.1"
                   />
                   <p className="text-sm text-muted-foreground mt-1">
-                    Percentage of account value to earn daily
+                    Percentage of perps account value to earn daily
                   </p>
                 </div>
 
@@ -347,9 +258,98 @@ export default function DailyTarget() {
           </Card>
         </div>
 
-        {/* Right Column - Target Breakdown and Trading Calculations */}
+        {/* Right Column - Today's Progress, Target Breakdown and Trading Calculations */}
         <div className="space-y-6">
-          {startOfDayValue > 0 && (
+          {/* Daily Progress Card - moved from left column */}
+          {balance && dailyStartBalance && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Today's Progress</span>
+                  <span className="text-2xl">{isTargetAchieved ? "🎯" : "📈"}</span>
+                </CardTitle>
+                <CardDescription>
+                  {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span>Progress</span>
+                      <span className={dailyProfit >= 0 ? (isTargetAchieved ? "text-green-600 font-semibold" : "") : "text-red-600 font-semibold"}>
+                        {progressPercentage.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700 relative overflow-hidden">
+                      {progressPercentage >= 0 ? (
+                        progressPercentage > 100 ? (
+                          <div 
+                            className="h-3 rounded-full transition-all duration-500"
+                            style={{ 
+                              width: '100%',
+                              background: `linear-gradient(90deg, 
+                                #10b981 0%, 
+                                #3b82f6 25%, 
+                                #8b5cf6 50%, 
+                                #ec4899 75%, 
+                                #f59e0b 100%)`
+                            }}
+                          />
+                        ) : (
+                          <div 
+                            className={`h-3 rounded-full transition-all duration-500 ${
+                              isTargetAchieved ? 'bg-green-600' : 'bg-blue-600'
+                            }`}
+                            style={{ width: `${progressPercentage}%` }}
+                          />
+                        )
+                      ) : (
+                        <div 
+                          className="h-3 bg-red-600 rounded-full transition-all duration-500"
+                          style={{ width: `${Math.min(Math.abs(progressPercentage), 100)}%` }}
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Start of Day (Perps)</p>
+                      <p className="font-semibold">{hlService.formatUsdValue(startOfDayPerpsValue)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Current Value (Perps)</p>
+                      <p className="font-semibold">{hlService.formatUsdValue(currentPerpsValue)}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Daily P&L</p>
+                      <p className={`font-semibold ${dailyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {dailyProfit >= 0 ? '+' : ''}{hlService.formatUsdValue(dailyProfit)}
+                        <span className="text-sm ml-1">
+                          ({dailyProfit >= 0 ? '+' : ''}{((dailyProfit / startOfDayPerpsValue) * 100).toFixed(2)}%)
+                        </span>
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-muted-foreground">Target</p>
+                      <p className="font-semibold">{hlService.formatUsdValue(dailyTargetAmount)}</p>
+                    </div>
+                  </div>
+
+                  {isTargetAchieved && (
+                    <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                      <p className="text-green-600 dark:text-green-400 font-semibold">
+                        🎉 Congratulations! Daily target achieved!
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {startOfDayPerpsValue > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Target Breakdown</CardTitle>
@@ -357,14 +357,14 @@ export default function DailyTarget() {
               <CardContent>
                 <div className="grid gap-4">
                   <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
-                    <span className="text-sm text-muted-foreground">Start of Day Value</span>
-                    <span className="font-semibold">{hlService.formatUsdValue(startOfDayValue)}</span>
+                    <span className="text-sm text-muted-foreground">Start of Day Perps Value</span>
+                    <span className="font-semibold">{hlService.formatUsdValue(startOfDayPerpsValue)}</span>
                   </div>
 
                   <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
                     <span className="text-sm text-muted-foreground">Daily Target Amount</span>
                     <span className="font-semibold">
-                      {hlService.formatUsdValue(startOfDayValue * (target.targetPercentage / 100))}
+                      {hlService.formatUsdValue(startOfDayPerpsValue * (target.targetPercentage / 100))}
                     </span>
                   </div>
 
@@ -386,7 +386,7 @@ export default function DailyTarget() {
           )}
 
           {/* Trading Calculations Card */}
-          {startOfDayValue > 0 && profitPerTrade > 0 && (
+          {startOfDayPerpsValue > 0 && profitPerTrade > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle>Trading Calculations</CardTitle>
@@ -417,10 +417,10 @@ export default function DailyTarget() {
                     const feeCost = positionSize * totalFeePercentage;
                     const riskWithFees = riskPerTrade + feeCost;
                     const stopLossPercentage = 1 / target.riskRewardRatio; // If targeting 1% profit, SL at 0.5% for RR 1:2
-                    const accountRiskPercentage = (riskWithFees / startOfDayValue) * 100; // % of account at risk
+                    const accountRiskPercentage = (riskWithFees / startOfDayPerpsValue) * 100; // % of account at risk
                     
                     // Calculate required win rate
-                    const accountProfitPercentage = (profitPerTrade / startOfDayValue) * 100;
+                    const accountProfitPercentage = (profitPerTrade / startOfDayPerpsValue) * 100;
                     const requiredWinRate = accountRiskPercentage / (accountRiskPercentage + accountProfitPercentage) * 100;
                     
                     // Calculate effective RR ratio after fees
