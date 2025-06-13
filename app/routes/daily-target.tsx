@@ -21,6 +21,7 @@ interface AdvancedSettings {
   takerFee: number;
   makerFee: number;
   streakThreshold: number;
+  lossThreshold: number;
 }
 
 export default function DailyTarget() {
@@ -36,6 +37,7 @@ export default function DailyTarget() {
     takerFee: 0.04,
     makerFee: 0.012,
     streakThreshold: 90,
+    lossThreshold: 30,
   });
   const [tempTarget, setTempTarget] = React.useState(target);
   const hlService = new HyperliquidService();
@@ -65,6 +67,10 @@ export default function DailyTarget() {
   const dailyTargetAmount = startOfDayValue * (target.targetPercentage / 100);
   const progressPercentage = dailyTargetAmount > 0 ? (dailyProfit / dailyTargetAmount) * 100 : 0;
   const isTargetAchieved = progressPercentage >= 100;
+  
+  // Check if loss threshold is hit
+  const lossThresholdHit = progressPercentage < -(advancedSettings.lossThreshold);
+  const actualLossPercentage = (dailyProfit / startOfDayValue) * 100;
 
   // Update streak tracking
   React.useEffect(() => {
@@ -119,6 +125,52 @@ export default function DailyTarget() {
                     ✅ Great job! Stay above {streakThreshold}% to extend your streak!
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Loss Threshold Warning */}
+          {balance && dailyStartBalance && lossThresholdHit && (
+            <Card className="border-red-500 bg-red-50/50 dark:bg-red-900/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between text-red-700 dark:text-red-400">
+                  <span className="text-lg">⚠️ Significant Loss Detected</span>
+                  <span className="text-2xl">🛑</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="p-3 bg-red-100 dark:bg-red-900/40 rounded-lg">
+                    <p className="text-sm font-semibold text-red-800 dark:text-red-300">
+                      Current Loss: {actualLossPercentage.toFixed(2)}% ({hlService.formatUsdValue(dailyProfit)})
+                    </p>
+                    <p className="text-xs text-red-700 dark:text-red-400 mt-1">
+                      You've exceeded your loss threshold of {advancedSettings.lossThreshold}% of daily target
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-red-700 dark:text-red-400">
+                      🧘 Time to Take a Break
+                    </p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                      Significant losses can affect your judgment and emotional state. We strongly recommend:
+                    </p>
+                    <ul className="text-sm space-y-1 ml-4 text-gray-700 dark:text-gray-300">
+                      <li>• Step away from trading for today</li>
+                      <li>• Take time to relax and clear your mind</li>
+                      <li>• Review your trades when you're calm</li>
+                      <li>• Return tomorrow with a fresh perspective</li>
+                    </ul>
+                  </div>
+                  
+                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                    <p className="text-xs text-amber-800 dark:text-amber-200">
+                      <strong>Remember:</strong> Forcing trades to recover losses often leads to even bigger losses. 
+                      The market will be here tomorrow. Protect your capital and mental well-being.
+                    </p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}

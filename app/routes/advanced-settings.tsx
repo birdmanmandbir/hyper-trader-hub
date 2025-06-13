@@ -9,6 +9,7 @@ interface AdvancedSettings {
   takerFee: number; // in percentage, e.g., 0.04
   makerFee: number; // in percentage, e.g., 0.02
   streakThreshold: number; // in percentage, e.g., 90
+  lossThreshold: number; // in percentage, e.g., 30 (negative percentage of daily target)
 }
 
 export default function AdvancedSettings() {
@@ -16,18 +17,19 @@ export default function AdvancedSettings() {
     takerFee: 0.04,
     makerFee: 0.012,
     streakThreshold: 90,
+    lossThreshold: 30,
   });
   const [tempSettings, setTempSettings] = React.useState(settings);
 
   const handleSave = () => {
     setSettings(tempSettings);
     toast.success("Advanced settings saved successfully!", {
-      description: `Taker fee: ${tempSettings.takerFee}%, Maker fee: ${tempSettings.makerFee}%, Streak threshold: ${tempSettings.streakThreshold}%`
+      description: `Taker fee: ${tempSettings.takerFee}%, Maker fee: ${tempSettings.makerFee}%, Streak threshold: ${tempSettings.streakThreshold}%, Loss threshold: ${tempSettings.lossThreshold}%`
     });
   };
 
   const handleReset = () => {
-    const defaults = { takerFee: 0.04, makerFee: 0.012, streakThreshold: 90 };
+    const defaults = { takerFee: 0.04, makerFee: 0.012, streakThreshold: 90, lossThreshold: 30 };
     setTempSettings(defaults);
     setSettings(defaults);
     toast.info("Settings reset to defaults");
@@ -93,6 +95,25 @@ export default function AdvancedSettings() {
                 />
                 <p className="text-sm text-muted-foreground mt-1">
                   Minimum percentage of daily target required to maintain streak
+                </p>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t">
+              <h3 className="font-semibold mb-4">Risk Management</h3>
+              <div>
+                <label className="text-sm font-medium">Loss Threshold (%)</label>
+                <Input
+                  type="number"
+                  value={tempSettings.lossThreshold}
+                  onChange={(e) => setTempSettings({ ...tempSettings, lossThreshold: parseFloat(e.target.value) || 30 })}
+                  placeholder="30"
+                  min="10"
+                  max="100"
+                  step="5"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Stop trading advice triggers when loss reaches this % of daily target (e.g., 30% means -3% loss if target is 10%)
                 </p>
               </div>
             </div>
