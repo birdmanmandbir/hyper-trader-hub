@@ -8,6 +8,7 @@ import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { useBalanceUpdater } from "~/hooks/useBalanceUpdater";
 import { useStreakTracking } from "~/hooks/useStreakTracking";
 import { HyperliquidService } from "~/lib/hyperliquid";
+import { TradingTimeBar } from "~/components/TradingTimeBar";
 
 interface DailyTarget {
   targetPercentage: number;
@@ -17,11 +18,19 @@ interface DailyTarget {
   marginUtilizationRate: number; // percentage of funds to use for perps
 }
 
+interface TimePeriod {
+  start: string;
+  end: string;
+  label?: string;
+}
+
 interface AdvancedSettings {
   takerFee: number;
   makerFee: number;
   streakThreshold: number;
   lossThreshold: number;
+  preferredTradingTimes: TimePeriod[];
+  avoidedTradingTimes: TimePeriod[];
 }
 
 export default function DailyTarget() {
@@ -38,6 +47,8 @@ export default function DailyTarget() {
     makerFee: 0.012,
     streakThreshold: 90,
     lossThreshold: 30,
+    preferredTradingTimes: [],
+    avoidedTradingTimes: [],
   });
   const [tempTarget, setTempTarget] = React.useState(target);
   const hlService = new HyperliquidService();
@@ -173,6 +184,14 @@ export default function DailyTarget() {
                 </div>
               </CardContent>
             </Card>
+          )}
+
+          {/* Trading Time Indicator */}
+          {(advancedSettings.preferredTradingTimes.length > 0 || advancedSettings.avoidedTradingTimes.length > 0) && (
+            <TradingTimeBar
+              preferredTimes={advancedSettings.preferredTradingTimes}
+              avoidedTimes={advancedSettings.avoidedTradingTimes}
+            />
           )}
 
           {/* Daily Progress Card */}
