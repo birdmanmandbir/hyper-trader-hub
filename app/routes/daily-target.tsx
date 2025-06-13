@@ -440,7 +440,10 @@ export default function DailyTarget() {
                             </div>
                             <div className="p-3 bg-muted rounded-lg">
                               <p className="text-xs text-muted-foreground">Risk per Trade</p>
-                              <p className="text-lg font-bold text-red-600">{hlService.formatUsdValue(riskWithFees)}</p>
+                              <p className="text-lg font-bold text-red-600">
+                                {hlService.formatUsdValue(riskWithFees)}
+                                <span className="text-sm ml-1">({accountRiskPercentage.toFixed(2)}%)</span>
+                              </p>
                             </div>
                             <div className="p-3 bg-muted rounded-lg">
                               <p className="text-xs text-muted-foreground">Stop Loss</p>
