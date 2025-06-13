@@ -17,7 +17,6 @@ export default function DailyTarget() {
     minimumTrades: 2,
     riskRewardRatio: 2,
     preferredLeverage: 10,
-    marginUtilizationRate: 80,
   });
   const [walletAddress] = useLocalStorage<string | null>("hyperliquid-wallet", null);
   const [advancedSettings] = useLocalStorage<AdvancedSettings>("advancedSettings", {
@@ -331,22 +330,6 @@ export default function DailyTarget() {
                   </p>
                 </div>
 
-                <div>
-                  <label className="text-sm font-medium">Margin Utilization (%)</label>
-                  <Input
-                    type="number"
-                    value={tempTarget.marginUtilizationRate}
-                    onChange={(e) => setTempTarget({ ...tempTarget, marginUtilizationRate: parseFloat(e.target.value) || 80 })}
-                    placeholder="80"
-                    min="10"
-                    max="100"
-                    step="5"
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Percentage of funds to allocate for perpetual trading
-                  </p>
-                </div>
-
                 <Button onClick={handleSave} className="w-full">
                   Save Target
                 </Button>
@@ -495,149 +478,6 @@ export default function DailyTarget() {
                     );
                   })()}
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Fund Allocation Card */}
-          {startOfDayValue > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Fund Allocation</CardTitle>
-                <CardDescription>
-                  Capital distribution between perpetuals and spot
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {(() => {
-                  // Use values from the balance hook
-                  const totalFunds = currentAccountValue;
-                  const stakingValue = balance?.stakingValue || 0;
-                  const spotValue = balance?.spotValue || 0;
-                  const perpsValue = balance?.perpsValue || 0;
-                  
-                  // Withdrawable is the free USDC that can be used
-                  const withdrawable = parseFloat(balance?.rawData?.withdrawable || '0');
-                  
-                  // Calculate margin requirements for trading plan (with fees)
-                  const totalFeePercentage = advancedSettings.takerFee * 2 / 100; // Convert to decimal
-                  const profitAfterFees = profitPerTrade + (profitPerTrade / 0.01) * totalFeePercentage;
-                  const positionSizePerTrade = profitAfterFees / 0.01; // Position size needed for 1% move
-                  const marginPerTrade = positionSizePerTrade / target.preferredLeverage;
-                  const totalMarginNeeded = marginPerTrade; // Only need margin for 1 trade at a time
-                  
-                  // Apply margin utilization rate to withdrawable funds
-                  const maxMarginAllowed = withdrawable * (target.marginUtilizationRate / 100);
-                  const actualMarginToReserve = Math.min(totalMarginNeeded, maxMarginAllowed);
-                  const availableForSpot = withdrawable - actualMarginToReserve;
-
-                  return (
-                    <div className="space-y-4">
-                      <div className="grid gap-3">
-                        <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
-                          <span className="text-sm text-muted-foreground">Total Account Value</span>
-                          <span className="font-semibold">{hlService.formatUsdValue(totalFunds)}</span>
-                        </div>
-
-                        {stakingValue > 0 && (
-                          <div className="flex justify-between items-center p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                            <span className="text-sm font-medium">Staking Value</span>
-                            <span className="font-semibold text-purple-600 dark:text-purple-400">
-                              {hlService.formatUsdValue(stakingValue)}
-                            </span>
-                          </div>
-                        )}
-
-                        {spotValue > 0 && (
-                          <div className="flex justify-between items-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
-                            <span className="text-sm font-medium">Spot Holdings</span>
-                            <span className="font-semibold text-orange-600 dark:text-orange-400">
-                              {hlService.formatUsdValue(spotValue)}
-                            </span>
-                          </div>
-                        )}
-
-                        {perpsValue > 0 && (
-                          <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                            <span className="text-sm font-medium">Perps Value</span>
-                            <span className="font-semibold text-blue-600 dark:text-blue-400">
-                              {hlService.formatUsdValue(perpsValue)}
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="pt-3 border-t">
-                          <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
-                            <span className="text-sm text-muted-foreground">Withdrawable (Free USDC)</span>
-                            <span className="font-semibold">{hlService.formatUsdValue(withdrawable)}</span>
-                          </div>
-
-                          <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg mt-3">
-                            <span className="text-sm font-medium">Reserved for Trading</span>
-                            <span className="font-semibold text-blue-600 dark:text-blue-400">
-                              {hlService.formatUsdValue(actualMarginToReserve)}
-                            </span>
-                          </div>
-
-                          <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border-2 border-green-200 dark:border-green-800 mt-3">
-                            <span className="text-sm font-medium">Available for Spot</span>
-                            <span className="font-semibold text-green-600 dark:text-green-400">
-                              {hlService.formatUsdValue(Math.max(0, availableForSpot))}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="pt-3 border-t">
-                        <p className="text-sm font-medium mb-2">Margin Analysis</p>
-                        <div className="space-y-2 text-sm">
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Position size per trade</span>
-                            <span>{hlService.formatUsdValue(positionSizePerTrade)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Margin needed per trade</span>
-                            <span>{hlService.formatUsdValue(totalMarginNeeded)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Max margin allowed ({target.marginUtilizationRate}%)</span>
-                            <span>{hlService.formatUsdValue(maxMarginAllowed)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span className="text-muted-foreground">Currently in use</span>
-                            <span>{hlService.formatUsdValue(parseFloat(balance?.rawData?.totalMarginUsed || "0"))}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {totalMarginNeeded > maxMarginAllowed && (
-                        <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-                          <p className="text-sm text-amber-800 dark:text-amber-200">
-                            ⚠️ Your trading plan requires {hlService.formatUsdValue(totalMarginNeeded)} margin, but your {target.marginUtilizationRate}% limit allows only {hlService.formatUsdValue(maxMarginAllowed)}.
-                            Consider increasing margin utilization rate or reducing position size.
-                          </p>
-                        </div>
-                      )}
-                      
-                      {withdrawable < totalMarginNeeded && (
-                        <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                          <p className="text-sm text-red-800 dark:text-red-200">
-                            ⚠️ Insufficient funds: You need {hlService.formatUsdValue(totalMarginNeeded - withdrawable)} more withdrawable funds.
-                          </p>
-                        </div>
-                      )}
-
-                      <div className="p-3 bg-muted rounded-lg">
-                        <p className="text-xs text-muted-foreground">
-                          <strong>How it works:</strong> The system reserves {target.marginUtilizationRate}% of your withdrawable funds for trading.
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          The remaining {100 - target.marginUtilizationRate}% stays available for spot purchases, ensuring you don't over-leverage.
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })()}
               </CardContent>
             </Card>
           )}

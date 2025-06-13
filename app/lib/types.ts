@@ -20,5 +20,4 @@ export interface DailyTarget {
   minimumTrades: number;
   riskRewardRatio: number;
   preferredLeverage: number;
-  marginUtilizationRate: number; // percentage of funds to use for perps
 }
