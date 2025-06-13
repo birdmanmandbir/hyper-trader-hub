@@ -5,21 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
-
-interface TimePeriod {
-  start: string; // HH:MM format
-  end: string; // HH:MM format
-  label?: string; // Optional label like "NY Open"
-}
-
-interface AdvancedSettings {
-  takerFee: number; // in percentage, e.g., 0.04
-  makerFee: number; // in percentage, e.g., 0.02
-  streakThreshold: number; // in percentage, e.g., 90
-  lossThreshold: number; // in percentage, e.g., 30 (negative percentage of daily target)
-  preferredTradingTimes: TimePeriod[]; // Best times to trade
-  avoidedTradingTimes: TimePeriod[]; // Times to avoid trading
-}
+import type { AdvancedSettings, TimePeriod } from "~/lib/types";
 
 export default function AdvancedSettings() {
   const [settings, setSettings] = useLocalStorage<AdvancedSettings>("advancedSettings", {

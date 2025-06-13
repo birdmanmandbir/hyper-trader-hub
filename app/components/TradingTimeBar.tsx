@@ -1,11 +1,6 @@
 import * as React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-
-interface TimePeriod {
-  start: string;
-  end: string;
-  label?: string;
-}
+import type { TimePeriod } from "~/lib/types";
 
 interface TradingTimeBarProps {
   preferredTimes: TimePeriod[];

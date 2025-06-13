@@ -9,29 +9,7 @@ import { useBalanceUpdater } from "~/hooks/useBalanceUpdater";
 import { useStreakTracking } from "~/hooks/useStreakTracking";
 import { HyperliquidService } from "~/lib/hyperliquid";
 import { TradingTimeBar } from "~/components/TradingTimeBar";
-
-interface DailyTarget {
-  targetPercentage: number;
-  minimumTrades: number;
-  riskRewardRatio: number;
-  preferredLeverage: number;
-  marginUtilizationRate: number; // percentage of funds to use for perps
-}
-
-interface TimePeriod {
-  start: string;
-  end: string;
-  label?: string;
-}
-
-interface AdvancedSettings {
-  takerFee: number;
-  makerFee: number;
-  streakThreshold: number;
-  lossThreshold: number;
-  preferredTradingTimes: TimePeriod[];
-  avoidedTradingTimes: TimePeriod[];
-}
+import type { DailyTarget, AdvancedSettings } from "~/lib/types";
 
 export default function DailyTarget() {
   const [target, setTarget] = useLocalStorage<DailyTarget>("dailyTarget", {

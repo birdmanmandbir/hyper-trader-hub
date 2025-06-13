@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useLocalStorage } from "./useLocalStorage";
+import type { AdvancedSettings } from "~/lib/types";
 
 interface StreakData {
   currentStreak: number;
@@ -8,12 +9,6 @@ interface StreakData {
   dailyProgress: Record<string, number>; // date -> progress percentage
   dailyMinimum: Record<string, number>; // date -> minimum progress reached during the day
   unconfirmedStreak: number; // potential streak if today ends successfully
-}
-
-interface AdvancedSettings {
-  takerFee: number;
-  makerFee: number;
-  streakThreshold: number;
 }
 
 // Helper function to get local date string in YYYY-MM-DD format
@@ -38,6 +33,9 @@ export function useStreakTracking() {
     takerFee: 0.04,
     makerFee: 0.012,
     streakThreshold: 90,
+    lossThreshold: 30,
+    preferredTradingTimes: [],
+    avoidedTradingTimes: [],
   });
 
   const updateDailyProgress = (progressPercentage: number) => {
