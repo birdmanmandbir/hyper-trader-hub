@@ -53,27 +53,32 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   const dailyTargetAmount = startOfDayPerpsValue * (dailyTarget.targetPercentage / 100);
   const targetProfitPerTrade = dailyTarget.minimumTrades > 0 ? dailyTargetAmount / dailyTarget.minimumTrades : 0;
   
-  // Calculate position size based on target profit and reward percentage
-  const positionSize = rewardPercentage > 0 ? targetProfitPerTrade / (rewardPercentage / 100) : 0;
-  
-  // Calculate fees
+  // Calculate fees percentage
   const totalFeePercentage = advancedSettings.takerFee * 2 / 100; // Round trip fees
-  const feeCost = positionSize * totalFeePercentage;
   
-  // Calculate actual risk and reward in dollars
+  // Calculate position size so that net reward (after fees) equals target
+  // netReward = grossReward - fees = targetProfitPerTrade
+  // positionSize * rewardPercentage/100 - positionSize * totalFeePercentage = targetProfitPerTrade
+  // positionSize * (rewardPercentage/100 - totalFeePercentage) = targetProfitPerTrade
+  const netRewardPercentage = (rewardPercentage / 100) - totalFeePercentage;
+  const positionSize = netRewardPercentage > 0 ? targetProfitPerTrade / netRewardPercentage : 0;
+  
+  // Calculate actual values
+  const feeCost = positionSize * totalFeePercentage;
   const riskDollar = positionSize * (riskPercentage / 100);
   const rewardDollar = positionSize * (rewardPercentage / 100);
-  const netReward = rewardDollar - feeCost;
+  const netReward = rewardDollar - feeCost; // This should equal targetProfitPerTrade
+  const netLoss = riskDollar + feeCost; // Total loss including fees
   
   // Calculate effective R:R after fees
-  const effectiveRR = riskDollar > 0 ? netReward / riskDollar : 0;
+  const effectiveRR = netLoss > 0 ? netReward / netLoss : 0;
   
   // Get leverage for the specific crypto or use default
   const leverage = advancedSettings.leverageMap[tempCoin] || advancedSettings.defaultLeverage || 10;
   const marginRequired = positionSize / leverage;
   
-  // Calculate account risk percentage
-  const accountRiskPercentage = startOfDayPerpsValue > 0 ? (riskDollar / startOfDayPerpsValue) * 100 : 0;
+  // Calculate account risk percentage (using net loss including fees)
+  const accountRiskPercentage = startOfDayPerpsValue > 0 ? (netLoss / startOfDayPerpsValue) * 100 : 0;
   
   const handleCopyTrade = () => {
     if (!entryPrice || !slPrice || !tpPrice) {
@@ -205,15 +210,15 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
             
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <p className="text-xs text-muted-foreground">Risk</p>
+                <p className="text-xs text-muted-foreground">Risk (Net with Fees)</p>
                 <p className="text-sm font-bold text-red-600">
                   -{riskPercentage.toFixed(2)}%
                 </p>
                 <p className="text-xs text-red-600">
-                  -{hlService.formatUsdValue(riskDollar)}
+                  -{hlService.formatUsdValue(netLoss)}
                 </p>
                 <p className="text-xs text-red-600/80">
-                  {accountRiskPercentage.toFixed(2)}% of account
+                  Loss: {hlService.formatUsdValue(riskDollar)} + Fees: {hlService.formatUsdValue(feeCost)}
                 </p>
               </div>
               <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
@@ -225,7 +230,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
                   +{hlService.formatUsdValue(netReward)}
                 </p>
                 <p className="text-xs text-green-600/80">
-                  Fees: {hlService.formatUsdValue(feeCost)}
+                  Target achieved!
                 </p>
               </div>
             </div>
@@ -236,9 +241,9 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
                 <li>• {tempCoin} {isLong ? "Long" : "Short"} @ {entry}</li>
                 <li>• Position: <span className="font-semibold text-foreground">{hlService.formatUsdValue(positionSize)}</span> ({leverage}x leverage)</li>
                 <li>• Target: <span className="font-semibold text-green-600">{takeProfit}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(netReward)} net)</li>
-                <li>• Stop: <span className="font-semibold text-red-600">{stopLoss}</span> (-{riskPercentage.toFixed(2)}%, {hlService.formatUsdValue(riskDollar)})</li>
+                <li>• Stop: <span className="font-semibold text-red-600">{stopLoss}</span> (-{riskPercentage.toFixed(2)}%, {hlService.formatUsdValue(netLoss)} total loss)</li>
                 <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> ({hlService.formatUsdValue(feeCost)})</li>
-                <li>• Account risk: <span className="font-semibold">{accountRiskPercentage.toFixed(2)}%</span></li>
+                <li>• Effective R:R: <span className="font-semibold">1:{effectiveRR.toFixed(2)}</span> (after fees)</li>
               </ul>
             </div>
             
