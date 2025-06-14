@@ -26,6 +26,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   const [stopLoss, setStopLoss] = React.useState<string>("");
   const [takeProfit, setTakeProfit] = React.useState<string>("");
   const [tempCoin, setTempCoin] = React.useState(defaultCoin);
+  const [manualPositionSize, setManualPositionSize] = React.useState<string>("");
   
   const currentPerpsValue = balance?.perpsValue || 0;
   
@@ -56,12 +57,24 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   // Calculate fees percentage
   const totalFeePercentage = advancedSettings.takerFee * 2 / 100; // Round trip fees
   
-  // Calculate position size so that net reward (after fees) equals target
-  // netReward = grossReward - fees = targetProfitPerTrade
-  // positionSize * rewardPercentage/100 - positionSize * totalFeePercentage = targetProfitPerTrade
-  // positionSize * (rewardPercentage/100 - totalFeePercentage) = targetProfitPerTrade
-  const netRewardPercentage = (rewardPercentage / 100) - totalFeePercentage;
-  const positionSize = netRewardPercentage > 0 ? targetProfitPerTrade / netRewardPercentage : 0;
+  // Parse manual position size (in coins)
+  const manualSizeInCoins = parseFloat(manualPositionSize) || 0;
+  
+  // If manual position size is provided, calculate USD value
+  // Otherwise, calculate position size based on target
+  let positionSize: number;
+  let positionSizeInCoins: number;
+  
+  if (manualSizeInCoins > 0 && entryPrice > 0) {
+    // Use manual position size
+    positionSizeInCoins = manualSizeInCoins;
+    positionSize = manualSizeInCoins * entryPrice;
+  } else {
+    // Calculate position size so that net reward (after fees) equals target
+    const netRewardPercentage = (rewardPercentage / 100) - totalFeePercentage;
+    positionSize = netRewardPercentage > 0 ? targetProfitPerTrade / netRewardPercentage : 0;
+    positionSizeInCoins = entryPrice > 0 ? positionSize / entryPrice : 0;
+  }
   
   // Calculate actual values
   const feeCost = positionSize * totalFeePercentage;
@@ -166,6 +179,23 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
           </div>
         </div>
         
+        <div>
+          <label className="text-xs text-muted-foreground">Position Size (Optional)</label>
+          <Input
+            type="number"
+            placeholder={`e.g., 1 ${tempCoin}`}
+            value={manualPositionSize}
+            onChange={(e) => setManualPositionSize(e.target.value)}
+            step="0.01"
+            className="font-mono"
+          />
+          <p className="text-xs text-muted-foreground mt-1">
+            {manualSizeInCoins > 0 
+              ? `Using manual size: ${manualSizeInCoins} ${tempCoin} = ${hlService.formatUsdValue(positionSize)}`
+              : "Leave empty to auto-calculate based on daily target"}
+          </p>
+        </div>
+        
         {isValid && startOfDayPerpsValue > 0 && (
           <>
             <div className="grid grid-cols-2 gap-3">
@@ -187,15 +217,18 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
             </div>
             
             <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
-              <p className="text-xs font-medium mb-2">Position Sizing (Based on Daily Target)</p>
+              <p className="text-xs font-medium mb-2">Position Sizing {manualSizeInCoins > 0 ? "(Manual Entry)" : "(Based on Daily Target)"}</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <p className="text-muted-foreground">Target per trade:</p>
-                  <p className="font-semibold">{hlService.formatUsdValue(targetProfitPerTrade)}</p>
-                </div>
+                {manualSizeInCoins === 0 && (
+                  <div>
+                    <p className="text-muted-foreground">Target per trade:</p>
+                    <p className="font-semibold">{hlService.formatUsdValue(targetProfitPerTrade)}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-muted-foreground">Position size:</p>
-                  <p className="font-semibold text-primary">{hlService.formatUsdValue(positionSize)}</p>
+                  <p className="font-semibold text-primary">{positionSizeInCoins.toFixed(4)} {tempCoin}</p>
+                  <p className="text-xs text-muted-foreground">{hlService.formatUsdValue(positionSize)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Leverage:</p>
@@ -239,7 +272,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
               <p className="text-xs font-medium mb-1">Trade Setup Summary</p>
               <ul className="text-xs space-y-0.5 text-muted-foreground">
                 <li>• {tempCoin} {isLong ? "Long" : "Short"} @ {entry}</li>
-                <li>• Position: <span className="font-semibold text-foreground">{hlService.formatUsdValue(positionSize)}</span> ({leverage}x leverage)</li>
+                <li>• Position: <span className="font-semibold text-foreground">{positionSizeInCoins.toFixed(4)} {tempCoin}</span> ({hlService.formatUsdValue(positionSize)}, {leverage}x leverage)</li>
                 <li>• Target: <span className="font-semibold text-green-600">{takeProfit}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(netReward)} net)</li>
                 <li>• Stop: <span className="font-semibold text-red-600">{stopLoss}</span> (-{riskPercentage.toFixed(2)}%, {hlService.formatUsdValue(netLoss)} total loss)</li>
                 <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> ({hlService.formatUsdValue(feeCost)})</li>
