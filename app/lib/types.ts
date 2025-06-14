@@ -13,11 +13,11 @@ export interface AdvancedSettings {
   lossThreshold: number; // in percentage, e.g., 30 (negative percentage of daily target)
   preferredTradingTimes: TimePeriod[]; // Best times to trade
   avoidedTradingTimes: TimePeriod[]; // Times to avoid trading
+  leverageMap: Record<string, number>; // Per-crypto leverage settings, e.g., { "ETH": 25, "BTC": 40 }
+  defaultLeverage: number; // Default leverage for cryptos not in the map
 }
 
 export interface DailyTarget {
   targetPercentage: number;
   minimumTrades: number;
-  riskRewardRatio: number;
-  preferredLeverage: number;
 }

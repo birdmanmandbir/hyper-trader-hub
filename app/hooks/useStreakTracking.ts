@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useLocalStorage } from "./useLocalStorage";
 import type { AdvancedSettings } from "~/lib/types";
+import { DEFAULT_ADVANCED_SETTINGS, STORAGE_KEYS } from "~/lib/constants";
 
 interface StreakData {
   currentStreak: number;
@@ -20,7 +21,7 @@ function getLocalDateString(date: Date = new Date()): string {
 }
 
 export function useStreakTracking() {
-  const [streakData, setStreakData] = useLocalStorage<StreakData>("streakData", {
+  const [streakData, setStreakData] = useLocalStorage<StreakData>(STORAGE_KEYS.STREAK_DATA, {
     currentStreak: 0,
     longestStreak: 0,
     lastUpdateDate: "",
@@ -29,14 +30,10 @@ export function useStreakTracking() {
     unconfirmedStreak: 0,
   });
 
-  const [advancedSettings] = useLocalStorage<AdvancedSettings>("advancedSettings", {
-    takerFee: 0.04,
-    makerFee: 0.012,
-    streakThreshold: 90,
-    lossThreshold: 30,
-    preferredTradingTimes: [],
-    avoidedTradingTimes: [],
-  });
+  const [advancedSettings] = useLocalStorage<AdvancedSettings>(
+    STORAGE_KEYS.ADVANCED_SETTINGS,
+    DEFAULT_ADVANCED_SETTINGS
+  );
 
   const updateDailyProgress = (progressPercentage: number) => {
     const today = getLocalDateString(); // YYYY-MM-DD format in local timezone

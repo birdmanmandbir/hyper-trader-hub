@@ -9,24 +9,20 @@ import { useBalanceUpdater } from "~/hooks/useBalanceUpdater";
 import { useStreakTracking } from "~/hooks/useStreakTracking";
 import { HyperliquidService } from "~/lib/hyperliquid";
 import { TradingTimeBar } from "~/components/TradingTimeBar";
+import { TradeCalculator } from "~/components/TradeCalculator";
 import type { DailyTarget, AdvancedSettings } from "~/lib/types";
+import { DEFAULT_DAILY_TARGET, DEFAULT_ADVANCED_SETTINGS, STORAGE_KEYS } from "~/lib/constants";
 
 export default function DailyTarget() {
-  const [target, setTarget] = useLocalStorage<DailyTarget>("dailyTarget", {
-    targetPercentage: 10,
-    minimumTrades: 2,
-    riskRewardRatio: 2,
-    preferredLeverage: 10,
-  });
-  const [walletAddress] = useLocalStorage<string | null>("hyperliquid-wallet", null);
-  const [advancedSettings] = useLocalStorage<AdvancedSettings>("advancedSettings", {
-    takerFee: 0.04,
-    makerFee: 0.012,
-    streakThreshold: 90,
-    lossThreshold: 30,
-    preferredTradingTimes: [],
-    avoidedTradingTimes: [],
-  });
+  const [target, setTarget] = useLocalStorage<DailyTarget>(
+    STORAGE_KEYS.DAILY_TARGET,
+    DEFAULT_DAILY_TARGET
+  );
+  const [walletAddress] = useLocalStorage<string | null>(STORAGE_KEYS.WALLET_ADDRESS, null);
+  const [advancedSettings] = useLocalStorage<AdvancedSettings>(
+    STORAGE_KEYS.ADVANCED_SETTINGS,
+    DEFAULT_ADVANCED_SETTINGS
+  );
   const [tempTarget, setTempTarget] = React.useState(target);
   const hlService = new HyperliquidService();
   const { balance, dailyStartBalance } = useBalanceUpdater(walletAddress);
@@ -35,7 +31,7 @@ export default function DailyTarget() {
   const handleSave = () => {
     setTarget(tempTarget);
     toast.success("Daily target saved successfully!", {
-      description: `Target: ${tempTarget.targetPercentage}% with ${tempTarget.minimumTrades} trades, RR: 1:${tempTarget.riskRewardRatio}, Leverage: ${tempTarget.preferredLeverage}x`
+      description: `Target: ${tempTarget.targetPercentage}% with ${tempTarget.minimumTrades} trades`
     });
   };
 
@@ -76,46 +72,13 @@ export default function DailyTarget() {
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Left Column - Daily Progress and Target Settings */}
         <div className="space-y-6">
-          {/* Streak Card */}
-          {balance && dailyStartBalance && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between">
-                  <span className="text-lg">Achievement Streak</span>
-                  <span className="text-2xl">{getStreakEmoji(unconfirmedStreak)}</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-3xl font-bold">{unconfirmedStreak} days</p>
-                    <p className="text-sm text-muted-foreground">
-                      {unconfirmedStreak > currentStreak ? 'Potential streak (confirm tomorrow)' : `Confirmed: ${currentStreak} days`}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-semibold text-muted-foreground">{longestStreak} days</p>
-                    <p className="text-sm text-muted-foreground">Best streak</p>
-                  </div>
-                </div>
-                {!todayStatus.currentlyAboveThreshold && (
-                  <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-900/20 rounded text-xs text-amber-800 dark:text-amber-200">
-                    ⚠️ Reach {streakThreshold}% of your target to qualify for today's streak!
-                  </div>
-                )}
-                {todayStatus.currentlyAboveThreshold && todayStatus.droppedBelowThreshold && (
-                  <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-xs text-blue-800 dark:text-blue-200">
-                    ℹ️ You dropped below {streakThreshold}% earlier but recovered - finish above {streakThreshold}% to maintain streak!
-                  </div>
-                )}
-                {todayStatus.currentlyAboveThreshold && !todayStatus.droppedBelowThreshold && (
-                  <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded text-xs text-green-800 dark:text-green-200">
-                    ✅ Great job! Stay above {streakThreshold}% to extend your streak!
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
+          {/* Trade Calculator with Position Sizing - at the top for frequent use */}
+          <TradeCalculator 
+            walletAddress={walletAddress} 
+            dailyTarget={target}
+            advancedSettings={advancedSettings}
+            startOfDayPerpsValue={startOfDayPerpsValue}
+          />
 
           {/* Loss Threshold Warning */}
           {balance && dailyStartBalance && lossThresholdHit && (
@@ -210,36 +173,6 @@ export default function DailyTarget() {
                   </p>
                 </div>
 
-                <div>
-                  <label className="text-sm font-medium">Risk/Reward Ratio (1:X)</label>
-                  <Input
-                    type="number"
-                    value={tempTarget.riskRewardRatio}
-                    onChange={(e) => setTempTarget({ ...tempTarget, riskRewardRatio: parseFloat(e.target.value) || 2 })}
-                    placeholder="2"
-                    min="1"
-                    step="0.1"
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Your reward target for every 1 unit of risk
-                  </p>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium">Preferred Leverage</label>
-                  <Input
-                    type="number"
-                    value={tempTarget.preferredLeverage}
-                    onChange={(e) => setTempTarget({ ...tempTarget, preferredLeverage: parseFloat(e.target.value) || 10 })}
-                    placeholder="10"
-                    min="1"
-                    max="100"
-                    step="1"
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Default leverage for your trades (1x-100x)
-                  </p>
-                </div>
 
                 <Button onClick={handleSave} className="w-full">
                   Save Target
@@ -349,6 +282,47 @@ export default function DailyTarget() {
             </Card>
           )}
 
+          {/* Achievement Streak Card - moved to right column */}
+          {balance && dailyStartBalance && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between">
+                  <span className="text-lg">Achievement Streak</span>
+                  <span className="text-2xl">{getStreakEmoji(unconfirmedStreak)}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-3xl font-bold">{unconfirmedStreak} days</p>
+                    <p className="text-sm text-muted-foreground">
+                      {unconfirmedStreak > currentStreak ? 'Potential streak (confirm tomorrow)' : `Confirmed: ${currentStreak} days`}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-semibold text-muted-foreground">{longestStreak} days</p>
+                    <p className="text-sm text-muted-foreground">Best streak</p>
+                  </div>
+                </div>
+                {!todayStatus.currentlyAboveThreshold && (
+                  <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-900/20 rounded text-xs text-amber-800 dark:text-amber-200">
+                    ⚠️ Reach {streakThreshold}% of your target to qualify for today's streak!
+                  </div>
+                )}
+                {todayStatus.currentlyAboveThreshold && todayStatus.droppedBelowThreshold && (
+                  <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-xs text-blue-800 dark:text-blue-200">
+                    ℹ️ You dropped below {streakThreshold}% earlier but recovered - finish above {streakThreshold}% to maintain streak!
+                  </div>
+                )}
+                {todayStatus.currentlyAboveThreshold && !todayStatus.droppedBelowThreshold && (
+                  <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded text-xs text-green-800 dark:text-green-200">
+                    ✅ Great job! Stay above {streakThreshold}% to extend your streak!
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {startOfDayPerpsValue > 0 && (
             <Card>
               <CardHeader>
@@ -381,106 +355,6 @@ export default function DailyTarget() {
                     To achieve your {target.targetPercentage}% daily target, you need to make {hlService.formatUsdValue(profitPerTrade)} profit on each of your {target.minimumTrades} trades.
                   </p>
                 )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Trading Calculations Card */}
-          {startOfDayPerpsValue > 0 && profitPerTrade > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Trading Calculations</CardTitle>
-                <CardDescription className="flex items-center justify-between">
-                  <span>Leverage and position sizing to catch 1% moves</span>
-                  <Link to="/advanced-settings" className="text-xs text-primary hover:underline">
-                    Configure fees →
-                  </Link>
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {/* Calculations */}
-                  {(() => {
-                    // Fee calculations (round trip with taker fees)
-                    const totalFeePercentage = advancedSettings.takerFee * 2 / 100; // Convert to decimal
-                    
-                    // Adjust profit target to account for fees
-                    const profitAfterFees = profitPerTrade + (profitPerTrade / 0.01) * totalFeePercentage;
-                    
-                    // Use user's preferred leverage
-                    const leverage = target.preferredLeverage;
-                    const positionSize = profitAfterFees / 0.01; // Position size needed for 1% move
-                    const marginRequired = positionSize / leverage;
-                    
-                    // Risk calculations including fees
-                    const riskPerTrade = profitPerTrade / target.riskRewardRatio;
-                    const feeCost = positionSize * totalFeePercentage;
-                    const riskWithFees = riskPerTrade + feeCost;
-                    const stopLossPercentage = 1 / target.riskRewardRatio; // If targeting 1% profit, SL at 0.5% for RR 1:2
-                    const accountRiskPercentage = (riskWithFees / startOfDayPerpsValue) * 100; // % of account at risk
-                    
-                    // Calculate required win rate
-                    const accountProfitPercentage = (profitPerTrade / startOfDayPerpsValue) * 100;
-                    const requiredWinRate = accountRiskPercentage / (accountRiskPercentage + accountProfitPercentage) * 100;
-                    
-                    // Calculate effective RR ratio after fees
-                    const effectiveRR = profitPerTrade / riskWithFees;
-
-                    return (
-                      <>
-                        <div className="grid gap-3">
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="p-3 bg-muted rounded-lg">
-                              <p className="text-xs text-muted-foreground">Using Leverage</p>
-                              <p className="text-lg font-bold">{leverage}x</p>
-                            </div>
-                            <div className="p-3 bg-muted rounded-lg">
-                              <p className="text-xs text-muted-foreground">Position Size</p>
-                              <p className="text-lg font-bold">{hlService.formatUsdValue(positionSize)}</p>
-                            </div>
-                            <div className="p-3 bg-muted rounded-lg">
-                              <p className="text-xs text-muted-foreground">Risk per Trade</p>
-                              <p className="text-lg font-bold text-red-600">
-                                {hlService.formatUsdValue(riskWithFees)}
-                                <span className="text-sm ml-1">({accountRiskPercentage.toFixed(2)}%)</span>
-                              </p>
-                            </div>
-                            <div className="p-3 bg-muted rounded-lg">
-                              <p className="text-xs text-muted-foreground">Stop Loss</p>
-                              <p className="text-lg font-bold text-red-600">{stopLossPercentage.toFixed(2)}%</p>
-                            </div>
-                          </div>
-
-                          <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                            <p className="text-xs font-medium mb-1">Trade Setup Summary</p>
-                            <ul className="text-xs space-y-0.5 text-muted-foreground">
-                              <li>• Leverage: <span className="font-semibold text-foreground">{leverage}x</span></li>
-                              <li>• Margin required: <span className="font-semibold text-foreground">{hlService.formatUsdValue(marginRequired)}</span></li>
-                              <li>• Target: <span className="font-semibold text-green-600">+1%</span> ({hlService.formatUsdValue(profitPerTrade)} net)</li>
-                              <li>• Stop: <span className="font-semibold text-red-600">-{stopLossPercentage.toFixed(2)}%</span></li>
-                              <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> round trip ({hlService.formatUsdValue(feeCost)})</li>
-                              <li>• Effective RR: <span className="font-semibold text-foreground">1:{effectiveRR.toFixed(2)}</span></li>
-                            </ul>
-                          </div>
-
-                          <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-                            <p className="text-xs text-amber-800 dark:text-amber-200">
-                              <strong>⚠️ Risk:</strong> {leverage}x leverage means {(100 / leverage).toFixed(2)}% 
-                              move against you = liquidation
-                            </p>
-                          </div>
-
-                          <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                            <p className="text-xs text-purple-800 dark:text-purple-200">
-                              <strong>📊 Win Rate:</strong> Need <span className="font-bold">{requiredWinRate.toFixed(1)}%</span> to break even
-                              {requiredWinRate > 50 && " (high due to fees)"}
-                            </p>
-                          </div>
-                        </div>
-                      </>
-                    );
-                  })()}
-                </div>
               </CardContent>
             </Card>
           )}

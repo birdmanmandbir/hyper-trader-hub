@@ -142,3 +142,23 @@ const [target, setTarget] = useLocalStorage<DailyTarget>("dailyTarget", defaultT
 2. Use kebab-case for localStorage keys
 3. Provide sensible default values
 4. Handle potential parsing errors in the hook (already implemented)
+5. **Use shared constants** from `~/lib/constants` for:
+   - Default values (e.g., `DEFAULT_ADVANCED_SETTINGS`, `DEFAULT_DAILY_TARGET`)
+   - Storage keys (e.g., `STORAGE_KEYS.ADVANCED_SETTINGS`)
+   - This prevents duplication and ensures consistency across the codebase
+
+### Constants
+The project uses a centralized constants file at `app/lib/constants.ts` that exports:
+- `DEFAULT_ADVANCED_SETTINGS` - Default values for advanced settings
+- `DEFAULT_DAILY_TARGET` - Default values for daily target
+- `STORAGE_KEYS` - All localStorage keys used in the app
+
+Example usage:
+```typescript
+import { DEFAULT_ADVANCED_SETTINGS, STORAGE_KEYS } from "~/lib/constants";
+
+const [settings] = useLocalStorage<AdvancedSettings>(
+  STORAGE_KEYS.ADVANCED_SETTINGS,
+  DEFAULT_ADVANCED_SETTINGS
+);
+```

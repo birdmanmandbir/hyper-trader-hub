@@ -6,16 +6,13 @@ import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import type { AdvancedSettings, TimePeriod } from "~/lib/types";
+import { DEFAULT_ADVANCED_SETTINGS, STORAGE_KEYS } from "~/lib/constants";
 
 export default function AdvancedSettings() {
-  const [settings, setSettings] = useLocalStorage<AdvancedSettings>("advancedSettings", {
-    takerFee: 0.04,
-    makerFee: 0.012,
-    streakThreshold: 90,
-    lossThreshold: 30,
-    preferredTradingTimes: [],
-    avoidedTradingTimes: [],
-  });
+  const [settings, setSettings] = useLocalStorage<AdvancedSettings>(
+    STORAGE_KEYS.ADVANCED_SETTINGS,
+    DEFAULT_ADVANCED_SETTINGS
+  );
   const [tempSettings, setTempSettings] = React.useState(settings);
 
   const handleSave = () => {
@@ -26,16 +23,8 @@ export default function AdvancedSettings() {
   };
 
   const handleReset = () => {
-    const defaults = { 
-      takerFee: 0.04, 
-      makerFee: 0.012, 
-      streakThreshold: 90, 
-      lossThreshold: 30,
-      preferredTradingTimes: [],
-      avoidedTradingTimes: [],
-    };
-    setTempSettings(defaults);
-    setSettings(defaults);
+    setTempSettings(DEFAULT_ADVANCED_SETTINGS);
+    setSettings(DEFAULT_ADVANCED_SETTINGS);
     toast.info("Settings reset to defaults");
   };
 
@@ -78,6 +67,41 @@ export default function AdvancedSettings() {
       updated[index] = { ...updated[index], [field]: value };
       setTempSettings({ ...tempSettings, avoidedTradingTimes: updated });
     }
+  };
+
+  const [newCrypto, setNewCrypto] = React.useState('');
+  const [newLeverage, setNewLeverage] = React.useState('');
+
+  const addCryptoLeverage = () => {
+    if (newCrypto && newLeverage) {
+      setTempSettings({
+        ...tempSettings,
+        leverageMap: {
+          ...tempSettings.leverageMap,
+          [newCrypto.toUpperCase()]: parseInt(newLeverage)
+        }
+      });
+      setNewCrypto('');
+      setNewLeverage('');
+    }
+  };
+
+  const removeCryptoLeverage = (crypto: string) => {
+    const { [crypto]: _, ...rest } = tempSettings.leverageMap;
+    setTempSettings({
+      ...tempSettings,
+      leverageMap: rest
+    });
+  };
+
+  const updateCryptoLeverage = (crypto: string, leverage: string) => {
+    setTempSettings({
+      ...tempSettings,
+      leverageMap: {
+        ...tempSettings.leverageMap,
+        [crypto]: parseInt(leverage) || 1
+      }
+    });
   };
 
   return (
@@ -160,6 +184,88 @@ export default function AdvancedSettings() {
                 <p className="text-sm text-muted-foreground mt-1">
                   Stop trading advice triggers when loss reaches this % of daily target (e.g., 30% means -3% loss if target is 10%)
                 </p>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t">
+              <h3 className="font-semibold mb-4">Leverage Configuration</h3>
+              <div className="mb-4">
+                <label className="text-sm font-medium">Default Leverage</label>
+                <Input
+                  type="number"
+                  value={tempSettings.defaultLeverage}
+                  onChange={(e) => setTempSettings({ ...tempSettings, defaultLeverage: parseInt(e.target.value) || 10 })}
+                  placeholder="10"
+                  min="1"
+                  max="100"
+                  step="1"
+                />
+                <p className="text-sm text-muted-foreground mt-1">
+                  Default leverage for cryptos not specifically configured
+                </p>
+              </div>
+
+              <div className="mb-4">
+                <label className="text-sm font-medium">Per-Crypto Leverage</label>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Set specific leverage for different cryptocurrencies
+                </p>
+                
+                <div className="space-y-2 mb-3">
+                  {Object.entries(tempSettings.leverageMap).map(([crypto, leverage]) => (
+                    <div key={crypto} className="flex gap-2 items-center p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
+                      <div className="flex-1 font-mono font-semibold">{crypto}</div>
+                      <Input
+                        type="number"
+                        value={leverage}
+                        onChange={(e) => updateCryptoLeverage(crypto, e.target.value)}
+                        className="w-24"
+                        min="1"
+                        max="100"
+                        step="1"
+                      />
+                      <span className="text-sm text-muted-foreground">x</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => removeCryptoLeverage(crypto)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={newCrypto}
+                    onChange={(e) => setNewCrypto(e.target.value.toUpperCase())}
+                    placeholder="Symbol (e.g., SOL)"
+                    className="flex-1"
+                  />
+                  <Input
+                    type="number"
+                    value={newLeverage}
+                    onChange={(e) => setNewLeverage(e.target.value)}
+                    placeholder="Leverage"
+                    className="w-32"
+                    min="1"
+                    max="100"
+                    step="1"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={addCryptoLeverage}
+                    disabled={!newCrypto || !newLeverage}
+                  >
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add
+                  </Button>
+                </div>
               </div>
             </div>
 
