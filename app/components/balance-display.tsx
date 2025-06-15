@@ -186,20 +186,39 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
           <CardContent>
             <div className="space-y-3">
               {balances.perpetualPositions.map((position, index) => (
-                <div key={index} className="flex justify-between items-center p-3 bg-muted rounded-lg">
-                  <div>
-                    <p className="font-semibold">{position.coin}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Size: {position.szi} @ {hlService.formatUsdValue(position.entryPx)}
-                    </p>
+                <div key={index} className="p-3 bg-muted rounded-lg">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <p className="font-semibold">{position.coin}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Size: {position.szi} @ {hlService.formatUsdValue(position.entryPx)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`font-semibold ${parseFloat(position.unrealizedPnl) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {hlService.formatUsdValue(position.unrealizedPnl)}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        ROE: {(parseFloat(position.returnOnEquity) * 100).toFixed(2)}%
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`font-semibold ${parseFloat(position.unrealizedPnl) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {hlService.formatUsdValue(position.unrealizedPnl)}
-                    </p>
-                    <p className="text-sm text-muted-foreground">
-                      ROE: {(parseFloat(position.returnOnEquity) * 100).toFixed(2)}%
-                    </p>
+                  <div className="flex justify-between items-center text-sm">
+                    <div className="flex items-center gap-4">
+                      <span className="text-muted-foreground">
+                        Margin: <span className="font-medium text-foreground">{hlService.formatUsdValue(position.marginUsed)}</span>
+                      </span>
+                      <span className="text-muted-foreground">
+                        Leverage: <span className="font-medium text-foreground">{position.leverage.toFixed(2)}x ({position.leverageType})</span>
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {parseFloat(balances.accountValue) > 0 && (
+                        <span>
+                          {((parseFloat(position.marginUsed) / parseFloat(balances.accountValue)) * 100).toFixed(1)}% of account
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}

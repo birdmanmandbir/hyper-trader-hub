@@ -23,7 +23,7 @@ Hyper Trader Hub provides Hyperliquid traders with tools to:
 
 ```bash
 # Development
-bun run dev          # Start development server with HMR on http://localhost:5173
+# DO NOT use `bun run dev`, will run manually
 
 # Type checking
 bun run typecheck    # Generate types and run TypeScript checking
