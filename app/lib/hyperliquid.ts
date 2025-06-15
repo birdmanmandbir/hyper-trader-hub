@@ -68,8 +68,8 @@ export class HyperliquidService {
           unrealizedPnl: pos.position.unrealizedPnl || "0",
           returnOnEquity: pos.position.returnOnEquity || "0",
           marginUsed: pos.position.marginUsed || "0",
-          leverage: pos.position.leverage.value || 0,
-          leverageType: pos.position.leverage.type || "cross",
+          leverage: pos.position.leverage?.value || 0,
+          leverageType: pos.position.leverage?.type || "cross",
         }));
 
       // Format spot balances

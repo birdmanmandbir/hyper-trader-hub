@@ -206,14 +206,14 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
                   <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-4">
                       <span className="text-muted-foreground">
-                        Margin: <span className="font-medium text-foreground">{hlService.formatUsdValue(position.marginUsed)}</span>
+                        Margin: <span className="font-medium text-foreground">{hlService.formatUsdValue(position.marginUsed || "0")}</span>
                       </span>
                       <span className="text-muted-foreground">
-                        Leverage: <span className="font-medium text-foreground">{position.leverage.toFixed(2)}x ({position.leverageType})</span>
+                        Leverage: <span className="font-medium text-foreground">{(position.leverage || 0).toFixed(2)}x ({position.leverageType || "cross"})</span>
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground">
-                      {parseFloat(balances.accountValue) > 0 && (
+                      {parseFloat(balances.accountValue) > 0 && position.marginUsed && (
                         <span>
                           {((parseFloat(position.marginUsed) / parseFloat(balances.accountValue)) * 100).toFixed(1)}% of account
                         </span>
