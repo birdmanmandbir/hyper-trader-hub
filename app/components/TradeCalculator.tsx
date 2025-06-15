@@ -35,13 +35,16 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   const slPrice = parseFloat(stopLoss) || 0;
   const tpPrice = parseFloat(takeProfit) || 0;
   
-  // Determine if it's a long or short trade
-  const isLong = slPrice < entryPrice;
+  // Determine if it's a long or short trade based on TP vs SL
+  // Long: TP > SL (regardless of where SL is relative to entry - can be above entry when protecting profits)
+  // Short: TP < SL (regardless of where SL is relative to entry - can be below entry when protecting profits)
+  const isLong = tpPrice > slPrice;
   
   // Calculate risk and reward percentages
+  // For risk: when SL is moved to protect profits, risk can be negative (guaranteed profit)
   const riskPercentage = isLong 
-    ? ((entryPrice - slPrice) / entryPrice) * 100
-    : ((slPrice - entryPrice) / entryPrice) * 100;
+    ? ((entryPrice - slPrice) / entryPrice) * 100  // Positive when SL < entry, negative when SL > entry
+    : ((slPrice - entryPrice) / entryPrice) * 100; // Positive when SL > entry, negative when SL < entry
     
   const rewardPercentage = isLong
     ? ((tpPrice - entryPrice) / entryPrice) * 100
@@ -115,8 +118,8 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   };
   
   const isValid = entryPrice > 0 && slPrice > 0 && tpPrice > 0 && 
-    ((isLong && slPrice < entryPrice && tpPrice > entryPrice) || 
-     (!isLong && slPrice > entryPrice && tpPrice < entryPrice));
+    ((isLong && tpPrice > slPrice) ||  // Long: TP must be higher than SL
+     (!isLong && tpPrice < slPrice));  // Short: TP must be lower than SL
 
   return (
     <Card>
@@ -242,16 +245,18 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
             </div>
             
             <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <p className="text-xs text-muted-foreground">Risk (Net with Fees)</p>
-                <p className="text-sm font-bold text-red-600">
-                  -{riskPercentage.toFixed(2)}%
+              <div className={`p-3 rounded-lg ${riskPercentage < 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
+                <p className="text-xs text-muted-foreground">{riskPercentage < 0 ? 'Guaranteed Profit (SL in profit)' : 'Risk (Net with Fees)'}</p>
+                <p className={`text-sm font-bold ${riskPercentage < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {riskPercentage < 0 ? '+' : '-'}{Math.abs(riskPercentage).toFixed(2)}%
                 </p>
-                <p className="text-xs text-red-600">
-                  -{hlService.formatUsdValue(netLoss)}
+                <p className={`text-xs ${riskPercentage < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {riskPercentage < 0 ? '+' : '-'}{hlService.formatUsdValue(Math.abs(netLoss))}
                 </p>
-                <p className="text-xs text-red-600/80">
-                  Loss: {hlService.formatUsdValue(riskDollar)} + Fees: {hlService.formatUsdValue(feeCost)}
+                <p className={`text-xs ${riskPercentage < 0 ? 'text-green-600/80' : 'text-red-600/80'}`}>
+                  {riskPercentage < 0 
+                    ? `Min profit: ${hlService.formatUsdValue(Math.abs(riskDollar))} - Fees: ${hlService.formatUsdValue(feeCost)}`
+                    : `Loss: ${hlService.formatUsdValue(riskDollar)} + Fees: ${hlService.formatUsdValue(feeCost)}`}
                 </p>
               </div>
               <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
@@ -280,7 +285,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
               </ul>
             </div>
             
-            {accountRiskPercentage > 2 && (
+            {accountRiskPercentage > 2 && riskPercentage > 0 && (
               <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
                 <p className="text-xs text-amber-800 dark:text-amber-200">
                   <strong>⚠️ Warning:</strong> You're risking {accountRiskPercentage.toFixed(2)}% of your account. 
@@ -311,7 +316,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
         {entryPrice > 0 && slPrice > 0 && tpPrice > 0 && !isValid && (
           <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
             <p className="text-xs text-amber-800 dark:text-amber-200">
-              Invalid setup: Check that SL and TP are on correct sides of entry
+              Invalid setup: For long trades, TP must be higher than SL. For short trades, TP must be lower than SL.
             </p>
           </div>
         )}
