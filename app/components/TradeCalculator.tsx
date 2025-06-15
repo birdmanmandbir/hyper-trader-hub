@@ -279,7 +279,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
                 <li>• {tempCoin} {isLong ? "Long" : "Short"} @ {entry}</li>
                 <li>• Position: <span className="font-semibold text-foreground">{positionSizeInCoins.toFixed(4)} {tempCoin}</span> ({hlService.formatUsdValue(positionSize)}, {leverage}x leverage)</li>
                 <li>• Target: <span className="font-semibold text-green-600">{takeProfit}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(netReward)} net)</li>
-                <li>• Stop: <span className="font-semibold text-red-600">{stopLoss}</span> (-{riskPercentage.toFixed(2)}%, {hlService.formatUsdValue(netLoss)} total loss)</li>
+                <li>• Stop: <span className={`font-semibold ${riskPercentage < 0 ? 'text-green-600' : 'text-red-600'}`}>{stopLoss}</span> ({riskPercentage < 0 ? '+' : '-'}{Math.abs(riskPercentage).toFixed(2)}%, {riskPercentage < 0 ? `${hlService.formatUsdValue(Math.abs(netLoss))} min profit` : `${hlService.formatUsdValue(netLoss)} total loss`})</li>
                 <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> ({hlService.formatUsdValue(feeCost)})</li>
                 <li>• Effective R:R: <span className="font-semibold">1:{effectiveRR.toFixed(2)}</span> (after fees)</li>
               </ul>
