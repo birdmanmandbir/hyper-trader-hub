@@ -195,14 +195,6 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
                         Size: {position.szi} @ {hlService.formatUsdValue(position.entryPx)}
                       </p>
                     </div>
-                    <div className="text-right">
-                      <p className={`font-semibold ${parseFloat(position.unrealizedPnl) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {hlService.formatUsdValue(position.unrealizedPnl)}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        ROE: {(parseFloat(position.returnOnEquity) * 100).toFixed(2)}%
-                      </p>
-                    </div>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <div className="flex items-center gap-4">
@@ -230,6 +222,7 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
                         entryPrice={position.entryPx}
                         side={position.szi}
                         orders={balances.orders}
+                        positionSize={position.marginUsed}
                       />
                     </div>
                   )}

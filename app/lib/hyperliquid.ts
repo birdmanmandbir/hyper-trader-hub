@@ -16,6 +16,12 @@ export interface Order {
   timestamp: number;
   reduceOnly: boolean;
   cloid?: string;
+  triggerPx?: string;
+  tpsl?: string;
+  children?: any[];
+  isTrigger?: boolean;
+  isPositionTpsl?: boolean;
+  triggerCondition?: string;
 }
 
 export interface BalanceInfo {
@@ -119,14 +125,14 @@ export class HyperliquidService {
         // Continue without staking data if it fails
       }
 
-      // Fetch open orders
+      // Fetch open orders using frontendOpenOrders for more details
       let orders: Order[] = [];
       try {
-        const openOrders = await this.infoClient.openOrders({ 
+        const frontendOrders = await this.infoClient.frontendOpenOrders({ 
           user: userAddress as `0x${string}` 
         });
         
-        orders = openOrders.map((order: any) => ({
+        orders = frontendOrders.map((order: any) => ({
           coin: order.coin,
           oid: order.oid,
           side: order.side,
@@ -137,7 +143,14 @@ export class HyperliquidService {
           timestamp: order.timestamp,
           reduceOnly: order.reduceOnly || false,
           cloid: order.cloid,
+          triggerPx: order.triggerPx,
+          tpsl: order.tpsl,
+          children: order.children,
+          isTrigger: order.isTrigger,
+          isPositionTpsl: order.isPositionTpsl,
+          triggerCondition: order.triggerCondition,
         }));
+        
       } catch (orderError) {
         console.warn("Error fetching orders:", orderError);
         // Continue without orders if it fails
