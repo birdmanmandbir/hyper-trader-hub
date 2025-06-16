@@ -44,11 +44,16 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   // Calculate fixed position size based on leverage
   let positionSize = 0;
   let positionSizeInCoins = 0;
+  let positionSizeInUSD = 0;
   
-  if (startOfDayPerpsValue > 0 && entryPrice > 0) {
-    // Fixed position size = account value * effective leverage
-    positionSize = startOfDayPerpsValue * effectiveLeverage;
-    positionSizeInCoins = positionSize / entryPrice;
+  if (startOfDayPerpsValue > 0) {
+    // Fixed position size in USD = account value * effective leverage
+    positionSizeInUSD = startOfDayPerpsValue * effectiveLeverage;
+    
+    if (entryPrice > 0) {
+      positionSize = positionSizeInUSD;
+      positionSizeInCoins = positionSize / entryPrice;
+    }
   }
   
   // Calculate target profit per trade
@@ -193,6 +198,38 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
             autoFocus
           />
         </div>
+        
+        {/* Show position size even without entry price */}
+        {startOfDayPerpsValue > 0 && !entryPrice && (
+          <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
+            <p className="text-xs font-medium mb-2">Fixed Position Size</p>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <p className="text-muted-foreground">Position size (USD):</p>
+                <p className="font-semibold text-primary">{hlService.formatUsdValue(positionSizeInUSD)}</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-xs mt-1"
+                  onClick={() => {
+                    const usdText = positionSizeInUSD.toFixed(2);
+                    navigator.clipboard.writeText(usdText);
+                    toast.success(`Position size (USD) copied: $${usdText}`);
+                  }}
+                >
+                  <Copy className="w-3 h-3 mr-1" />
+                  Copy USD
+                </Button>
+              </div>
+              <div>
+                <p className="text-muted-foreground">Leverage:</p>
+                <p className="font-semibold">{effectiveLeverage.toFixed(1)}x</p>
+                <p className="text-xs text-muted-foreground">({dailyTarget.fixedLeverageRatio || 10}% of {maxLeverage}x)</p>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">Enter price to calculate {coin} amount</p>
+          </div>
+        )}
         
         {isValid && (
           <>
