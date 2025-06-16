@@ -6,6 +6,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import { HyperliquidService } from "~/lib/hyperliquid";
 import { useBalanceUpdater } from "~/hooks/useBalanceUpdater";
+import { useLivePrice } from "~/hooks/useLivePrice";
 import { Copy, Calculator, Check, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "~/lib/utils";
@@ -27,6 +28,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   const [entry, setEntry] = React.useState<string>("");
   const [selectedCoin, setSelectedCoin] = React.useState<string>("");
   const [openCombobox, setOpenCombobox] = React.useState(false);
+  const [useManualPrice, setUseManualPrice] = React.useState(false);
   
   const currentPerpsValue = balance?.perpsValue || 0;
   
@@ -38,6 +40,16 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   
   // Use selected coin or default
   const coin = selectedCoin || (isLong ? advancedSettings.defaultLongCrypto : advancedSettings.defaultShortCrypto);
+  
+  // Get live price for the selected coin
+  const { price: livePrice, isConnected, error: priceError } = useLivePrice(coin);
+  
+  // Use live price if available and manual price is not set
+  React.useEffect(() => {
+    if (livePrice && !useManualPrice) {
+      setEntry(livePrice);
+    }
+  }, [livePrice, useManualPrice]);
   
   // Parse input values
   const entryPrice = parseFloat(entry) || 0;
@@ -247,15 +259,47 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
         </div>
         
         <div>
-          <label className="text-xs text-muted-foreground">Entry Price</label>
+          <label className="text-xs text-muted-foreground flex items-center justify-between">
+            <span>Entry Price</span>
+            {isConnected && (
+              <span className="text-green-600 flex items-center gap-1">
+                <span className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
+                Live
+              </span>
+            )}
+            {priceError && (
+              <span className="text-red-600 text-xs">Price feed error</span>
+            )}
+          </label>
           <Input
             type="number"
-            placeholder={isLong ? "2511" : "32100"}
+            placeholder={livePrice || (isLong ? "2511" : "32100")}
             value={entry}
-            onChange={(e) => setEntry(e.target.value)}
+            onChange={(e) => {
+              setEntry(e.target.value);
+              setUseManualPrice(true);
+            }}
+            onFocus={() => {
+              if (livePrice && !useManualPrice) {
+                setEntry(livePrice);
+              }
+            }}
             step="0.01"
             autoFocus
           />
+          {useManualPrice && livePrice && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="w-full mt-1 h-6 text-xs"
+              onClick={() => {
+                setEntry(livePrice);
+                setUseManualPrice(false);
+              }}
+            >
+              Use live price ({livePrice})
+            </Button>
+          )}
         </div>
         
         {/* Show position size even without entry price */}
