@@ -2,11 +2,15 @@ import * as React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "~/components/ui/command";
+import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
 import { HyperliquidService } from "~/lib/hyperliquid";
 import { useBalanceUpdater } from "~/hooks/useBalanceUpdater";
-import { Copy, Calculator } from "lucide-react";
+import { Copy, Calculator, Check, ChevronsUpDown } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "~/lib/utils";
 import type { DailyTarget, AdvancedSettings } from "~/lib/types";
+import { CRYPTO_LIST } from "~/lib/constants";
 
 interface TradeCalculatorProps {
   walletAddress: string | null;
@@ -21,11 +25,19 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   
   const [isLong, setIsLong] = React.useState(true);
   const [entry, setEntry] = React.useState<string>("");
+  const [selectedCoin, setSelectedCoin] = React.useState<string>("");
+  const [openCombobox, setOpenCombobox] = React.useState(false);
   
   const currentPerpsValue = balance?.perpsValue || 0;
   
-  // Get the coin based on direction
-  const coin = isLong ? advancedSettings.defaultLongCrypto : advancedSettings.defaultShortCrypto;
+  // Initialize selected coin based on direction
+  React.useEffect(() => {
+    const defaultCoin = isLong ? advancedSettings.defaultLongCrypto : advancedSettings.defaultShortCrypto;
+    setSelectedCoin(defaultCoin);
+  }, [isLong, advancedSettings.defaultLongCrypto, advancedSettings.defaultShortCrypto]);
+  
+  // Use selected coin or default
+  const coin = selectedCoin || (isLong ? advancedSettings.defaultLongCrypto : advancedSettings.defaultShortCrypto);
   
   // Parse input values
   const entryPrice = parseFloat(entry) || 0;
@@ -170,21 +182,68 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-2">
-          <Button
-            variant={isLong ? "default" : "outline"}
-            onClick={() => setIsLong(true)}
-            className="font-semibold"
-          >
-            🟢 Long ({advancedSettings.defaultLongCrypto})
-          </Button>
-          <Button
-            variant={!isLong ? "default" : "outline"}
-            onClick={() => setIsLong(false)}
-            className="font-semibold"
-          >
-            🔴 Short ({advancedSettings.defaultShortCrypto})
-          </Button>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant={isLong ? "default" : "outline"}
+              onClick={() => setIsLong(true)}
+              className="font-semibold"
+            >
+              🟢 Long
+            </Button>
+            <Button
+              variant={!isLong ? "default" : "outline"}
+              onClick={() => setIsLong(false)}
+              className="font-semibold"
+            >
+              🔴 Short
+            </Button>
+          </div>
+          
+          <div>
+            <label className="text-xs text-muted-foreground mb-1 block">Select Crypto</label>
+            <Popover open={openCombobox} onOpenChange={setOpenCombobox}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openCombobox}
+                  className="w-full justify-between"
+                >
+                  {coin || "Select crypto..."}
+                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-full p-0">
+                <Command>
+                  <CommandInput placeholder="Search crypto..." />
+                  <CommandList>
+                    <CommandEmpty>No crypto found.</CommandEmpty>
+                    <CommandGroup>
+                      {CRYPTO_LIST.map((crypto) => (
+                        <CommandItem
+                          key={crypto}
+                          value={crypto}
+                          onSelect={(currentValue) => {
+                            setSelectedCoin(currentValue.toUpperCase());
+                            setOpenCombobox(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              coin === crypto ? "opacity-100" : "opacity-0"
+                            )}
+                          />
+                          {crypto}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
         
         <div>
