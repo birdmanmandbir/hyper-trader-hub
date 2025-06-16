@@ -30,6 +30,9 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   // Parse input values
   const entryPrice = parseFloat(entry) || 0;
   
+  // Dynamic precision based on entry price
+  const pricePrecision = entryPrice >= 1 ? 1 : 3;
+  
   // Get leverage for the specific crypto or use default
   const maxLeverage = advancedSettings.leverageMap[coin] || advancedSettings.defaultLeverage || 10;
   
@@ -127,7 +130,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
       return;
     }
     
-    const priceText = price.toFixed(1);
+    const priceText = price.toFixed(pricePrecision);
     navigator.clipboard.writeText(priceText);
     toast.success(`${label} copied: ${priceText}`);
   };
@@ -140,7 +143,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
     
     const emoji = isLong ? "🟢" : "🔴";
     const direction = isLong ? "Long" : "Short";
-    const tradeText = `${emoji} ${direction} ${coin} entry ${entry}, SL ${slPrice.toFixed(1)}, TP ${tpPrice.toFixed(1)}`;
+    const tradeText = `${emoji} ${direction} ${coin} entry ${entry}, SL ${slPrice.toFixed(pricePrecision)}, TP ${tpPrice.toFixed(pricePrecision)}`;
     
     navigator.clipboard.writeText(tradeText);
     toast.success("Trade copied to clipboard!", {
@@ -196,7 +199,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
             <div className="grid grid-cols-3 gap-2">
               <div className="p-3 bg-muted rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Stop Loss</p>
-                <p className="font-mono font-semibold text-red-600">{slPrice.toFixed(1)}</p>
+                <p className="font-mono font-semibold text-red-600">{slPrice.toFixed(pricePrecision)}</p>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -209,7 +212,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
               </div>
               <div className="p-3 bg-muted rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Entry</p>
-                <p className="font-mono font-semibold">{entryPrice.toFixed(1)}</p>
+                <p className="font-mono font-semibold">{entryPrice.toFixed(pricePrecision)}</p>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -222,7 +225,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
               </div>
               <div className="p-3 bg-muted rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">Take Profit</p>
-                <p className="font-mono font-semibold text-green-600">{tpPrice.toFixed(1)}</p>
+                <p className="font-mono font-semibold text-green-600">{tpPrice.toFixed(pricePrecision)}</p>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -301,7 +304,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
                   <p className="text-muted-foreground">SL BE Price:</p>
-                  <p className="font-semibold">{slBePrice.toFixed(1)}</p>
+                  <p className="font-semibold">{slBePrice.toFixed(pricePrecision)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Movement to BE:</p>
@@ -316,9 +319,9 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
               <ul className="text-xs space-y-0.5 text-muted-foreground">
                 <li>• {coin} {isLong ? "Long" : "Short"} @ {entry}</li>
                 <li>• Position: <span className="font-semibold text-foreground">{positionSizeInCoins.toFixed(4)} {coin}</span> ({hlService.formatUsdValue(positionSize)}, {effectiveLeverage.toFixed(1)}x leverage)</li>
-                <li>• Target: <span className="font-semibold text-green-600">{tpPrice.toFixed(1)}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(targetProfitPerTrade)} net)</li>
-                <li>• Stop: <span className="font-semibold text-red-600">{slPrice.toFixed(1)}</span> (-{riskPercentage.toFixed(2)}%, {hlService.formatUsdValue(riskDollar)} total loss)</li>
-                <li>• SL BE: <span className="font-semibold">{slBePrice.toFixed(1)}</span> ({beMovementPercentage.toFixed(3)}% move to breakeven)</li>
+                <li>• Target: <span className="font-semibold text-green-600">{tpPrice.toFixed(pricePrecision)}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(targetProfitPerTrade)} net)</li>
+                <li>• Stop: <span className="font-semibold text-red-600">{slPrice.toFixed(pricePrecision)}</span> (-{riskPercentage.toFixed(2)}%, {hlService.formatUsdValue(riskDollar)} total loss)</li>
+                <li>• SL BE: <span className="font-semibold">{slBePrice.toFixed(pricePrecision)}</span> ({beMovementPercentage.toFixed(3)}% move to breakeven)</li>
                 <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> ({hlService.formatUsdValue(feeCost)})</li>
                 <li>• Dynamic R:R: <span className="font-semibold">1:{rrRatio.toFixed(2)}</span> (fixed {fixedSLPercentage}% risk, {(dailyTarget.targetPercentage / dailyTarget.minimumTrades).toFixed(1)}% target)</li>
               </ul>
