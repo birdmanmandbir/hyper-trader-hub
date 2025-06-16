@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { HyperliquidService, type BalanceInfo } from "~/lib/hyperliquid";
+import { PositionOrderChart } from "~/components/PositionOrderChart";
 
 interface StoredBalance {
   accountValue: number;
@@ -220,6 +221,18 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
                       )}
                     </div>
                   </div>
+                  
+                  {/* Position Order Chart */}
+                  {balances.orders && (
+                    <div className="mt-3 pt-3 border-t">
+                      <PositionOrderChart
+                        coin={position.coin}
+                        entryPrice={position.entryPx}
+                        side={position.szi}
+                        orders={balances.orders}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

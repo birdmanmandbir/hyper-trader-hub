@@ -17,7 +17,7 @@ interface DailyStartBalance {
   perpsValue: number; // Added to track perps-specific value
 }
 
-const UPDATE_INTERVAL = 30000; // 30 seconds
+const UPDATE_INTERVAL = 15000; // 15 seconds
 
 export function useBalanceUpdater(walletAddress: string | null) {
   const [storedBalance, setStoredBalance] = useLocalStorage<StoredBalance | null>("balance-data", null);

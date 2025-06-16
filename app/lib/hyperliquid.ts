@@ -5,6 +5,19 @@ export interface StakingInfo {
   pendingWithdrawals: string;
 }
 
+export interface Order {
+  coin: string;
+  oid: string;
+  side: string;
+  limitPx: string;
+  sz: string;
+  origSz: string;
+  orderType: string;
+  timestamp: number;
+  reduceOnly: boolean;
+  cloid?: string;
+}
+
 export interface BalanceInfo {
   accountValue: string;
   withdrawable: string;
@@ -27,6 +40,7 @@ export interface BalanceInfo {
     leverageType: string;
   }>;
   staking?: StakingInfo;
+  orders?: Order[];
 }
 
 export class HyperliquidService {
@@ -105,6 +119,30 @@ export class HyperliquidService {
         // Continue without staking data if it fails
       }
 
+      // Fetch open orders
+      let orders: Order[] = [];
+      try {
+        const openOrders = await this.infoClient.openOrders({ 
+          user: userAddress as `0x${string}` 
+        });
+        
+        orders = openOrders.map((order: any) => ({
+          coin: order.coin,
+          oid: order.oid,
+          side: order.side,
+          limitPx: order.limitPx,
+          sz: order.sz,
+          origSz: order.origSz,
+          orderType: order.orderType,
+          timestamp: order.timestamp,
+          reduceOnly: order.reduceOnly || false,
+          cloid: order.cloid,
+        }));
+      } catch (orderError) {
+        console.warn("Error fetching orders:", orderError);
+        // Continue without orders if it fails
+      }
+
       return {
         accountValue: marginSummary.accountValue,
         withdrawable: perpsState.withdrawable,
@@ -113,6 +151,7 @@ export class HyperliquidService {
         spotBalances,
         perpetualPositions,
         staking,
+        orders,
       };
     } catch (error) {
       console.error("Error fetching user balances:", error);
