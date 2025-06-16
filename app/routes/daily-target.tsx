@@ -126,13 +126,6 @@ export default function DailyTarget() {
             </Card>
           )}
 
-          {/* Trading Time Indicator */}
-          {(advancedSettings.preferredTradingTimes.length > 0 || advancedSettings.avoidedTradingTimes.length > 0) && (
-            <TradingTimeBar
-              preferredTimes={advancedSettings.preferredTradingTimes}
-              avoidedTimes={advancedSettings.avoidedTradingTimes}
-            />
-          )}
 
           <Card>
             <CardHeader>
@@ -394,6 +387,14 @@ export default function DailyTarget() {
                 )}
               </CardContent>
             </Card>
+          )}
+          
+          {/* Trading Time Indicator */}
+          {(advancedSettings.preferredTradingTimes.length > 0 || advancedSettings.avoidedTradingTimes.length > 0) && (
+            <TradingTimeBar
+              preferredTimes={advancedSettings.preferredTradingTimes}
+              avoidedTimes={advancedSettings.avoidedTradingTimes}
+            />
           )}
         </div>
       </div>
