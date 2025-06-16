@@ -123,8 +123,8 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   // Calculate R:R ratio (dynamic based on fixed SL and target)
   const rrRatio = riskDollar > 0 ? rewardDollar / riskDollar : 0;
   
-  // Calculate margin required
-  const marginRequired = positionSize / effectiveLeverage;
+  // Calculate margin required (using max leverage, not effective leverage)
+  const marginRequired = positionSize / maxLeverage;
   
   // Calculate SL BE (Breakeven) price including fees
   const feePercentagePerSide = advancedSettings.takerFee / 100;
