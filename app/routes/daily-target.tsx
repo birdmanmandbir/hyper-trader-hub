@@ -194,17 +194,18 @@ export default function DailyTarget() {
                     </div>
 
                     <div>
-                      <label className="text-sm font-medium">Fixed Risk:Reward Ratio</label>
+                      <label className="text-sm font-medium">Fixed Stop Loss (%)</label>
                       <Input
                         type="number"
-                        value={tempTarget.fixedRR || ''}
-                        onChange={(e) => setTempTarget({ ...tempTarget, fixedRR: e.target.value ? parseFloat(e.target.value) : undefined })}
-                        placeholder="3"
+                        value={tempTarget.fixedSLPercentage || ''}
+                        onChange={(e) => setTempTarget({ ...tempTarget, fixedSLPercentage: e.target.value ? parseFloat(e.target.value) : undefined })}
+                        placeholder="2"
                         min="0.1"
+                        max="10"
                         step="0.1"
                       />
                       <p className="text-sm text-muted-foreground mt-1">
-                        Auto-calculate TP & SL based on this R:R (e.g., 3 for 1:3 ratio)
+                        Maximum loss per trade as % of account (e.g., 2% of total account)
                       </p>
                     </div>
                   </div>

@@ -18,6 +18,8 @@ export const DEFAULT_ADVANCED_SETTINGS: AdvancedSettings = {
 export const DEFAULT_DAILY_TARGET: DailyTarget = {
   targetPercentage: 10,
   minimumTrades: 2,
+  fixedLeverageRatio: 10,
+  fixedSLPercentage: 2,
 };
 
 // Common localStorage keys

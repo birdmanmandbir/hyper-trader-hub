@@ -22,6 +22,6 @@ export interface AdvancedSettings {
 export interface DailyTarget {
   targetPercentage: number;
   minimumTrades: number;
-  fixedLeverageRatio?: number; // Percentage of max leverage to use, e.g., 25 for 25%
-  fixedRR?: number; // Fixed risk-reward ratio, e.g., 3 for 1:3 R:R
+  fixedLeverageRatio?: number; // Percentage of max leverage to use, e.g., 10 for 10%
+  fixedSLPercentage?: number; // Fixed stop loss percentage of account, e.g., 2 for 2%
 }

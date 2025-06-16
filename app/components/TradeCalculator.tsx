@@ -2,13 +2,11 @@ import * as React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
-import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { HyperliquidService } from "~/lib/hyperliquid";
 import { useBalanceUpdater } from "~/hooks/useBalanceUpdater";
 import { Copy, Calculator } from "lucide-react";
 import { toast } from "sonner";
 import type { DailyTarget, AdvancedSettings } from "~/lib/types";
-import { STORAGE_KEYS } from "~/lib/constants";
 
 interface TradeCalculatorProps {
   walletAddress: string | null;
@@ -23,9 +21,6 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   
   const [isLong, setIsLong] = React.useState(true);
   const [entry, setEntry] = React.useState<string>("");
-  const [stopLoss, setStopLoss] = React.useState<string>("");
-  const [takeProfit, setTakeProfit] = React.useState<string>("");
-  const [manualPositionSize, setManualPositionSize] = React.useState<string>("");
   
   const currentPerpsValue = balance?.perpsValue || 0;
   
@@ -34,95 +29,80 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   
   // Parse input values
   const entryPrice = parseFloat(entry) || 0;
-  let slPrice = parseFloat(stopLoss) || 0;
-  let tpPrice = parseFloat(takeProfit) || 0;
   
-  // Auto-calculate TP & SL if fixed R:R is set and entry is provided
-  React.useEffect(() => {
-    if (dailyTarget.fixedRR && entryPrice > 0 && !stopLoss && !takeProfit) {
-      // Calculate a 1% risk as default
-      const riskAmount = entryPrice * 0.01;
-      const rewardAmount = riskAmount * dailyTarget.fixedRR;
-      
-      if (isLong) {
-        setStopLoss((entryPrice - riskAmount).toFixed(4));
-        setTakeProfit((entryPrice + rewardAmount).toFixed(4));
-      } else {
-        setStopLoss((entryPrice + riskAmount).toFixed(4));
-        setTakeProfit((entryPrice - rewardAmount).toFixed(4));
-      }
-    }
-  }, [entryPrice, isLong, dailyTarget.fixedRR, stopLoss, takeProfit]);
+  // Get leverage for the specific crypto or use default
+  const maxLeverage = advancedSettings.leverageMap[coin] || advancedSettings.defaultLeverage || 10;
   
-  // Re-parse after potential auto-calculation
-  slPrice = parseFloat(stopLoss) || 0;
-  tpPrice = parseFloat(takeProfit) || 0;
+  // Calculate effective leverage using fixed leverage ratio (default 10%)
+  const effectiveLeverage = dailyTarget.fixedLeverageRatio 
+    ? (maxLeverage * dailyTarget.fixedLeverageRatio / 100)
+    : maxLeverage * 0.1; // Default to 10% if not set
   
-  // Calculate risk and reward percentages
-  const riskPercentage = isLong 
-    ? ((entryPrice - slPrice) / entryPrice) * 100
-    : ((slPrice - entryPrice) / entryPrice) * 100;
-    
-  const rewardPercentage = isLong
-    ? ((tpPrice - entryPrice) / entryPrice) * 100
-    : ((entryPrice - tpPrice) / entryPrice) * 100;
+  // Calculate fixed position size based on leverage
+  let positionSize = 0;
+  let positionSizeInCoins = 0;
   
-  // Calculate R:R ratio
-  const rrRatio = riskPercentage > 0 ? rewardPercentage / riskPercentage : 0;
+  if (startOfDayPerpsValue > 0 && entryPrice > 0) {
+    // Fixed position size = account value * effective leverage
+    positionSize = startOfDayPerpsValue * effectiveLeverage;
+    positionSizeInCoins = positionSize / entryPrice;
+  }
   
   // Calculate target profit per trade
   const dailyTargetAmount = startOfDayPerpsValue * (dailyTarget.targetPercentage / 100);
   const targetProfitPerTrade = dailyTarget.minimumTrades > 0 ? dailyTargetAmount / dailyTarget.minimumTrades : 0;
   
-  // Calculate fees percentage
+  // Calculate fees
   const totalFeePercentage = advancedSettings.takerFee * 2 / 100; // Round trip fees
+  const feeCost = positionSize * totalFeePercentage;
   
-  // Parse manual position size (in coins)
-  const manualSizeInCoins = parseFloat(manualPositionSize) || 0;
+  // Calculate SL based on fixed SL percentage (default 2%)
+  const fixedSLPercentage = dailyTarget.fixedSLPercentage || 2;
+  const maxLossAmount = startOfDayPerpsValue * (fixedSLPercentage / 100);
   
-  // Get leverage for the specific crypto or use default
-  const maxLeverage = advancedSettings.leverageMap[coin] || advancedSettings.defaultLeverage || 10;
+  // Calculate SL price
+  let slPrice = 0;
+  let slPercentageFromEntry = 0;
   
-  // Calculate effective leverage if fixed leverage ratio is set
-  const effectiveLeverage = dailyTarget.fixedLeverageRatio 
-    ? (maxLeverage * dailyTarget.fixedLeverageRatio / 100)
-    : maxLeverage;
-  
-  // If manual position size is provided, calculate USD value
-  // Otherwise, calculate position size based on target
-  let positionSize: number;
-  let positionSizeInCoins: number;
-  
-  if (manualSizeInCoins > 0 && entryPrice > 0) {
-    // Use manual position size
-    positionSizeInCoins = manualSizeInCoins;
-    positionSize = manualSizeInCoins * entryPrice;
-  } else if (dailyTarget.fixedLeverageRatio && startOfDayPerpsValue > 0 && entryPrice > 0) {
-    // Use fixed leverage ratio to calculate position size
-    const marginAvailable = startOfDayPerpsValue;
-    positionSize = marginAvailable * effectiveLeverage;
-    positionSizeInCoins = positionSize / entryPrice;
-  } else {
-    // Calculate position size so that net reward (after fees) equals target
-    const netRewardPercentage = (rewardPercentage / 100) - totalFeePercentage;
-    positionSize = netRewardPercentage > 0 ? targetProfitPerTrade / netRewardPercentage : 0;
-    positionSizeInCoins = entryPrice > 0 ? positionSize / entryPrice : 0;
+  if (entryPrice > 0 && positionSize > 0) {
+    // Max loss includes fees
+    const maxLossWithoutFees = maxLossAmount - feeCost;
+    slPercentageFromEntry = (maxLossWithoutFees / positionSize) * 100;
+    
+    if (isLong) {
+      slPrice = entryPrice * (1 - slPercentageFromEntry / 100);
+    } else {
+      slPrice = entryPrice * (1 + slPercentageFromEntry / 100);
+    }
   }
   
-  // Calculate actual values
-  const feeCost = positionSize * totalFeePercentage;
-  const riskDollar = positionSize * (riskPercentage / 100);
-  const rewardDollar = positionSize * (rewardPercentage / 100);
-  const netReward = rewardDollar - feeCost;
-  const netLoss = riskDollar + feeCost;
+  // Calculate TP to achieve target profit per trade
+  let tpPrice = 0;
+  let tpPercentageFromEntry = 0;
   
-  // Calculate effective R:R after fees
-  const effectiveRR = netLoss > 0 ? netReward / netLoss : 0;
+  if (entryPrice > 0 && positionSize > 0) {
+    // Target profit includes fees
+    const requiredGrossProfit = targetProfitPerTrade + feeCost;
+    tpPercentageFromEntry = (requiredGrossProfit / positionSize) * 100;
+    
+    if (isLong) {
+      tpPrice = entryPrice * (1 + tpPercentageFromEntry / 100);
+    } else {
+      tpPrice = entryPrice * (1 - tpPercentageFromEntry / 100);
+    }
+  }
   
+  // Calculate actual risk and reward
+  const riskPercentage = Math.abs(slPercentageFromEntry);
+  const rewardPercentage = Math.abs(tpPercentageFromEntry);
+  const riskDollar = maxLossAmount;
+  const rewardDollar = targetProfitPerTrade;
+  
+  // Calculate R:R ratio (dynamic based on fixed SL and target)
+  const rrRatio = riskDollar > 0 ? rewardDollar / riskDollar : 0;
+  
+  // Calculate margin required
   const marginRequired = positionSize / effectiveLeverage;
-  
-  // Calculate account risk percentage (using net loss including fees)
-  const accountRiskPercentage = startOfDayPerpsValue > 0 ? (netLoss / startOfDayPerpsValue) * 100 : 0;
   
   // Calculate SL BE (Breakeven) price including fees
   const feePercentagePerSide = advancedSettings.takerFee / 100;
@@ -141,15 +121,26 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   
   const beMovementPercentage = Math.abs((slBePrice - entryPrice) / entryPrice * 100);
   
+  const handleCopyPrice = (price: number, label: string) => {
+    if (price <= 0) {
+      toast.error(`${label} not calculated yet`);
+      return;
+    }
+    
+    const priceText = price.toFixed(4);
+    navigator.clipboard.writeText(priceText);
+    toast.success(`${label} copied: ${priceText}`);
+  };
+  
   const handleCopyTrade = () => {
-    if (!entryPrice || !slPrice || !tpPrice) {
-      toast.error("Please fill in all fields");
+    if (!entryPrice || slPrice <= 0 || tpPrice <= 0) {
+      toast.error("Please enter a valid entry price");
       return;
     }
     
     const emoji = isLong ? "🟢" : "🔴";
     const direction = isLong ? "Long" : "Short";
-    const tradeText = `${emoji} ${direction} ${coin} entry ${entry}, SL ${stopLoss}, TP ${takeProfit}`;
+    const tradeText = `${emoji} ${direction} ${coin} entry ${entry}, SL ${slPrice.toFixed(4)}, TP ${tpPrice.toFixed(4)}`;
     
     navigator.clipboard.writeText(tradeText);
     toast.success("Trade copied to clipboard!", {
@@ -157,19 +148,17 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
     });
   };
   
-  const isValid = entryPrice > 0 && slPrice > 0 && tpPrice > 0 && 
-    ((isLong && tpPrice > slPrice) ||
-     (!isLong && tpPrice < slPrice));
+  const isValid = entryPrice > 0 && startOfDayPerpsValue > 0;
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Calculator className="w-5 h-5" />
-          Trade Calculator & Position Sizing
+          Trade Calculator - Fixed Position & Dynamic R:R
         </CardTitle>
         <CardDescription>
-          Calculate position size based on your daily target and risk management
+          Auto-calculates TP for daily target and SL for {fixedSLPercentage}% account risk
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -198,92 +187,57 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
             value={entry}
             onChange={(e) => setEntry(e.target.value)}
             step="0.01"
+            autoFocus
           />
         </div>
         
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className="text-xs text-muted-foreground">Stop Loss</label>
-            <Input
-              type="number"
-              placeholder={isLong ? "2500" : "32500"}
-              value={stopLoss}
-              onChange={(e) => setStopLoss(e.target.value)}
-              step="0.01"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">Take Profit</label>
-            <Input
-              type="number"
-              placeholder={isLong ? "2540" : "31500"}
-              value={takeProfit}
-              onChange={(e) => setTakeProfit(e.target.value)}
-              step="0.01"
-            />
-          </div>
-        </div>
-        
-        {dailyTarget.fixedRR && (
-          <p className="text-xs text-muted-foreground">
-            Using fixed R:R ratio of 1:{dailyTarget.fixedRR}
-          </p>
-        )}
-        
-        <div>
-          <label className="text-xs text-muted-foreground">Position Size (Optional)</label>
-          <Input
-            type="number"
-            placeholder={`e.g., 1 ${coin}`}
-            value={manualPositionSize}
-            onChange={(e) => setManualPositionSize(e.target.value)}
-            step="0.01"
-            className="font-mono"
-          />
-          <p className="text-xs text-muted-foreground mt-1">
-            {manualSizeInCoins > 0 
-              ? `Using manual size: ${manualSizeInCoins} ${coin} = ${hlService.formatUsdValue(positionSize)}`
-              : dailyTarget.fixedLeverageRatio
-                ? `Using fixed leverage: ${effectiveLeverage.toFixed(1)}x (${dailyTarget.fixedLeverageRatio}% of ${maxLeverage}x)`
-                : "Leave empty to auto-calculate based on daily target"}
-          </p>
-        </div>
-        
-        {isValid && startOfDayPerpsValue > 0 && (
+        {isValid && (
           <>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-2">
               <div className="p-3 bg-muted rounded-lg">
-                <p className="text-xs text-muted-foreground">Direction</p>
-                <p className="text-lg font-bold flex items-center gap-1">
-                  {isLong ? (
-                    <>🟢 Long {coin}</>
-                  ) : (
-                    <>🔴 Short {coin}</>
-                  )}
-                </p>
+                <p className="text-xs text-muted-foreground mb-1">Stop Loss</p>
+                <p className="font-mono font-semibold text-red-600">{slPrice.toFixed(4)}</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="w-full mt-1 h-6 text-xs"
+                  onClick={() => handleCopyPrice(slPrice, "Stop Loss")}
+                >
+                  <Copy className="w-3 h-3 mr-1" />
+                  Copy
+                </Button>
               </div>
               <div className="p-3 bg-muted rounded-lg">
-                <p className="text-xs text-muted-foreground">Raw R:R</p>
-                <p className="text-lg font-bold">1:{rrRatio.toFixed(2)}</p>
-                <p className="text-xs text-muted-foreground">After fees: 1:{effectiveRR.toFixed(2)}</p>
+                <p className="text-xs text-muted-foreground mb-1">Entry</p>
+                <p className="font-mono font-semibold">{entryPrice.toFixed(4)}</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="w-full mt-1 h-6 text-xs"
+                  onClick={() => handleCopyPrice(entryPrice, "Entry")}
+                >
+                  <Copy className="w-3 h-3 mr-1" />
+                  Copy
+                </Button>
+              </div>
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-xs text-muted-foreground mb-1">Take Profit</p>
+                <p className="font-mono font-semibold text-green-600">{tpPrice.toFixed(4)}</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="w-full mt-1 h-6 text-xs"
+                  onClick={() => handleCopyPrice(tpPrice, "Take Profit")}
+                >
+                  <Copy className="w-3 h-3 mr-1" />
+                  Copy
+                </Button>
               </div>
             </div>
             
             <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
-              <p className="text-xs font-medium mb-2">
-                Position Sizing {manualSizeInCoins > 0 
-                  ? "(Manual Entry)" 
-                  : dailyTarget.fixedLeverageRatio 
-                    ? "(Fixed Leverage)" 
-                    : "(Based on Daily Target)"}
-              </p>
+              <p className="text-xs font-medium mb-2">Fixed Position Sizing</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                {!manualSizeInCoins && !dailyTarget.fixedLeverageRatio && (
-                  <div>
-                    <p className="text-muted-foreground">Target per trade:</p>
-                    <p className="font-semibold">{hlService.formatUsdValue(targetProfitPerTrade)}</p>
-                  </div>
-                )}
                 <div>
                   <p className="text-muted-foreground">Position size:</p>
                   <p className="font-semibold text-primary">{positionSizeInCoins.toFixed(4)} {coin}</p>
@@ -292,14 +246,44 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
                 <div>
                   <p className="text-muted-foreground">Leverage:</p>
                   <p className="font-semibold">{effectiveLeverage.toFixed(1)}x</p>
-                  {dailyTarget.fixedLeverageRatio && (
-                    <p className="text-xs text-muted-foreground">({dailyTarget.fixedLeverageRatio}% of {maxLeverage}x)</p>
-                  )}
+                  <p className="text-xs text-muted-foreground">({dailyTarget.fixedLeverageRatio || 10}% of {maxLeverage}x)</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Margin required:</p>
                   <p className="font-semibold">{hlService.formatUsdValue(marginRequired)}</p>
                 </div>
+                <div>
+                  <p className="text-muted-foreground">Dynamic R:R:</p>
+                  <p className="font-semibold">1:{rrRatio.toFixed(2)}</p>
+                  <p className="text-xs text-muted-foreground">After fees</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                <p className="text-xs text-muted-foreground">Fixed Risk ({fixedSLPercentage}% of Account)</p>
+                <p className="text-sm font-bold text-red-600">
+                  -{riskPercentage.toFixed(2)}% move
+                </p>
+                <p className="text-xs text-red-600">
+                  -{hlService.formatUsdValue(riskDollar)}
+                </p>
+                <p className="text-xs text-red-600/80">
+                  Includes {hlService.formatUsdValue(feeCost)} fees
+                </p>
+              </div>
+              <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                <p className="text-xs text-muted-foreground">Target Profit (Per Trade)</p>
+                <p className="text-sm font-bold text-green-600">
+                  +{rewardPercentage.toFixed(2)}% move
+                </p>
+                <p className="text-xs text-green-600">
+                  +{hlService.formatUsdValue(rewardDollar)}
+                </p>
+                <p className="text-xs text-green-600/80">
+                  After {hlService.formatUsdValue(feeCost)} fees
+                </p>
               </div>
             </div>
             
@@ -318,56 +302,18 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-3">
-              <div className={`p-3 rounded-lg ${riskPercentage < 0 ? 'bg-green-50 dark:bg-green-900/20' : 'bg-red-50 dark:bg-red-900/20'}`}>
-                <p className="text-xs text-muted-foreground">{riskPercentage < 0 ? 'Guaranteed Profit (SL in profit)' : 'Risk (Net with Fees)'}</p>
-                <p className={`text-sm font-bold ${riskPercentage < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {riskPercentage < 0 ? '+' : '-'}{Math.abs(riskPercentage).toFixed(2)}%
-                </p>
-                <p className={`text-xs ${riskPercentage < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {riskPercentage < 0 ? '+' : '-'}{hlService.formatUsdValue(Math.abs(netLoss))}
-                </p>
-                <p className={`text-xs ${riskPercentage < 0 ? 'text-green-600/80' : 'text-red-600/80'}`}>
-                  {riskPercentage < 0 
-                    ? `Min profit: ${hlService.formatUsdValue(Math.abs(riskDollar))} - Fees: ${hlService.formatUsdValue(feeCost)}`
-                    : `Loss: ${hlService.formatUsdValue(riskDollar)} + Fees: ${hlService.formatUsdValue(feeCost)}`}
-                </p>
-              </div>
-              <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <p className="text-xs text-muted-foreground">Reward (Net)</p>
-                <p className="text-sm font-bold text-green-600">
-                  +{rewardPercentage.toFixed(2)}%
-                </p>
-                <p className="text-xs text-green-600">
-                  +{hlService.formatUsdValue(netReward)}
-                </p>
-                <p className="text-xs text-green-600/80">
-                  {!manualSizeInCoins && !dailyTarget.fixedLeverageRatio ? "Target achieved!" : `Profit: ${hlService.formatUsdValue(netReward)}`}
-                </p>
-              </div>
-            </div>
-            
             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
               <p className="text-xs font-medium mb-1">Trade Setup Summary</p>
               <ul className="text-xs space-y-0.5 text-muted-foreground">
                 <li>• {coin} {isLong ? "Long" : "Short"} @ {entry}</li>
                 <li>• Position: <span className="font-semibold text-foreground">{positionSizeInCoins.toFixed(4)} {coin}</span> ({hlService.formatUsdValue(positionSize)}, {effectiveLeverage.toFixed(1)}x leverage)</li>
-                <li>• Target: <span className="font-semibold text-green-600">{takeProfit}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(netReward)} net)</li>
-                <li>• Stop: <span className={`font-semibold ${riskPercentage < 0 ? 'text-green-600' : 'text-red-600'}`}>{stopLoss}</span> ({riskPercentage < 0 ? '+' : '-'}{Math.abs(riskPercentage).toFixed(2)}%, {riskPercentage < 0 ? `${hlService.formatUsdValue(Math.abs(netLoss))} min profit` : `${hlService.formatUsdValue(netLoss)} total loss`})</li>
+                <li>• Target: <span className="font-semibold text-green-600">{tpPrice.toFixed(4)}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(targetProfitPerTrade)} net)</li>
+                <li>• Stop: <span className="font-semibold text-red-600">{slPrice.toFixed(4)}</span> (-{riskPercentage.toFixed(2)}%, {hlService.formatUsdValue(riskDollar)} total loss)</li>
                 <li>• SL BE: <span className="font-semibold">{slBePrice.toFixed(4)}</span> ({beMovementPercentage.toFixed(3)}% move to breakeven)</li>
                 <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> ({hlService.formatUsdValue(feeCost)})</li>
-                <li>• Effective R:R: <span className="font-semibold">1:{effectiveRR.toFixed(2)}</span> (after fees)</li>
+                <li>• Dynamic R:R: <span className="font-semibold">1:{rrRatio.toFixed(2)}</span> (fixed {fixedSLPercentage}% risk, {(dailyTarget.targetPercentage / dailyTarget.minimumTrades).toFixed(1)}% target)</li>
               </ul>
             </div>
-            
-            {accountRiskPercentage > 2 && riskPercentage > 0 && (
-              <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-                <p className="text-xs text-amber-800 dark:text-amber-200">
-                  <strong>⚠️ Warning:</strong> You're risking {accountRiskPercentage.toFixed(2)}% of your account. 
-                  Consider reducing position size or tightening stop loss.
-                </p>
-              </div>
-            )}
             
             <Button 
               onClick={handleCopyTrade} 
@@ -375,23 +321,15 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
               variant="secondary"
             >
               <Copy className="w-4 h-4" />
-              Copy Trade Setup
+              Copy Complete Trade Setup
             </Button>
           </>
         )}
         
-        {isValid && startOfDayPerpsValue === 0 && (
+        {entryPrice > 0 && startOfDayPerpsValue === 0 && (
           <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
             <p className="text-xs text-amber-800 dark:text-amber-200">
               Waiting for start of day balance to calculate position size...
-            </p>
-          </div>
-        )}
-        
-        {entryPrice > 0 && slPrice > 0 && tpPrice > 0 && !isValid && (
-          <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-            <p className="text-xs text-amber-800 dark:text-amber-200">
-              Invalid setup: For long trades, TP must be higher than SL. For short trades, TP must be lower than SL.
             </p>
           </div>
         )}
