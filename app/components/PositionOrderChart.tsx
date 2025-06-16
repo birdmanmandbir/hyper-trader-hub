@@ -214,7 +214,7 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
             className="w-full flex items-center justify-between p-0 h-auto hover:bg-transparent"
             onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
           >
-            <CardTitle className="text-sm">Setup Analysis</CardTitle>
+            <CardTitle className="text-xs font-medium">Setup Analysis</CardTitle>
             {isAnalysisOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
           </Button>
         </CardHeader>
@@ -341,8 +341,8 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
                         <p className="font-bold text-lg">1:{rrRatio.toFixed(2)}</p>
                       </div>
                       <div className="text-center">
-                        <p className="text-muted-foreground">Total Fees</p>
-                        <p className="font-semibold">{formatUsd(entryFee + slExitFee + totalTpExitFees)}</p>
+                        <p className="text-muted-foreground">Max Fees</p>
+                        <p className="font-semibold">{formatUsd(entryFee + slExitFee)}</p>
                       </div>
                       <div className="text-center">
                         <p className="text-muted-foreground">Breakeven</p>
@@ -351,7 +351,7 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
                     </div>
                   </div>
                   
-                  {totalTpSize < sizeNum && (
+                  {totalTpSize < sizeNum * 0.99 && ( // Allow 1% tolerance for rounding
                     <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
                       ⚠️ TP orders total {((totalTpSize / sizeNum) * 100).toFixed(0)}% of position. R:R calculated for partial exit.
                     </div>
