@@ -228,11 +228,10 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
               // Entry fees (taker fee for market entry)
               const entryFee = positionValue * (takerFee / 100);
               
-              // Find first SL and TP orders
+              // Find first SL order
               const firstSL = slOrders[0];
-              const firstTP = tpOrders[0];
               
-              if (!firstSL || !firstTP) {
+              if (!firstSL || tpOrders.length === 0) {
                 return (
                   <p className="text-sm text-muted-foreground">
                     Complete setup analysis requires both SL and TP orders
@@ -241,8 +240,6 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
               }
               
               const slPrice = firstSL.triggerPx ? parseFloat(firstSL.triggerPx) : parseFloat(firstSL.limitPx);
-              const tpPrice = parseFloat(firstTP.limitPx);
-              const tpSize = parseFloat(firstTP.sz);
               
               // Calculate SL risk
               const slPriceMove = Math.abs(slPrice - entry);
@@ -252,14 +249,31 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
               const totalSlLoss = slLossBeforeFees + entryFee + slExitFee;
               const slPercentMove = (slPriceMove / entry) * 100;
               
-              // Calculate TP reward (for the TP order size, not full position)
-              const tpPriceMove = Math.abs(tpPrice - entry);
-              const tpProfitPerCoin = isLong ? (tpPrice - entry) : (entry - tpPrice);
-              const tpProfitBeforeFees = tpProfitPerCoin * tpSize;
-              const tpExitFee = (tpPrice * tpSize) * (makerFee / 100); // Limit order uses maker fee
-              const tpEntryFeeProportional = entryFee * (tpSize / sizeNum); // Proportional entry fee
-              const totalTpProfit = tpProfitBeforeFees - tpEntryFeeProportional - tpExitFee;
+              // Calculate total TP reward (sum of all TP orders)
+              let totalTpProfitBeforeFees = 0;
+              let totalTpExitFees = 0;
+              let totalTpSize = 0;
+              let weightedTpPrice = 0;
+              
+              tpOrders.forEach(tpOrder => {
+                const tpPrice = parseFloat(tpOrder.limitPx);
+                const tpSize = parseFloat(tpOrder.sz);
+                totalTpSize += tpSize;
+                weightedTpPrice += tpPrice * tpSize;
+                
+                const tpProfitPerCoin = isLong ? (tpPrice - entry) : (entry - tpPrice);
+                totalTpProfitBeforeFees += tpProfitPerCoin * tpSize;
+                totalTpExitFees += (tpPrice * tpSize) * (makerFee / 100);
+              });
+              
+              // Calculate weighted average TP price for display
+              const avgTpPrice = totalTpSize > 0 ? weightedTpPrice / totalTpSize : 0;
+              const tpPriceMove = Math.abs(avgTpPrice - entry);
               const tpPercentMove = (tpPriceMove / entry) * 100;
+              
+              // Calculate proportional entry fee for TP orders
+              const tpEntryFeeProportional = entryFee * (totalTpSize / sizeNum);
+              const totalTpProfit = totalTpProfitBeforeFees - tpEntryFeeProportional - totalTpExitFees;
               
               // R:R calculation
               const rrRatio = totalSlLoss > 0 ? totalTpProfit / totalSlLoss : 0;
@@ -294,7 +308,7 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
                     <h4 className="text-xs font-semibold text-muted-foreground uppercase">Reward (Take Profit)</h4>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
-                        <p className="text-muted-foreground">Price Move:</p>
+                        <p className="text-muted-foreground">Avg Price Move:</p>
                         <p className="font-semibold text-green-600">+{tpPercentMove.toFixed(2)}%</p>
                       </div>
                       <div>
@@ -302,14 +316,21 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
                         <p className="font-semibold text-green-600">+{formatUsd(totalTpProfit)}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">TP Size:</p>
-                        <p className="text-xs">{tpSize} {coin} ({((tpSize / sizeNum) * 100).toFixed(0)}%)</p>
+                        <p className="text-muted-foreground">Total TP Size:</p>
+                        <p className="text-xs">{totalTpSize.toFixed(4)} {coin} ({((totalTpSize / sizeNum) * 100).toFixed(0)}%)</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">Exit Fee:</p>
-                        <p className="text-xs">{formatUsd(tpExitFee)} ({makerFee}%)</p>
+                        <p className="text-muted-foreground">Exit Fees:</p>
+                        <p className="text-xs">{formatUsd(totalTpExitFees)} ({makerFee}%)</p>
                       </div>
                     </div>
+                    {tpOrders.length > 1 && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {tpOrders.length} TP orders: {tpOrders.map((tp, idx) => 
+                          `TP${idx + 1} ${formatPrice(parseFloat(tp.limitPx))} (${tp.sz} ${coin})`
+                        ).join(', ')}
+                      </div>
+                    )}
                   </div>
                   
                   {/* Summary */}
@@ -321,7 +342,7 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
                       </div>
                       <div className="text-center">
                         <p className="text-muted-foreground">Total Fees</p>
-                        <p className="font-semibold">{formatUsd(entryFee + slExitFee + tpExitFee)}</p>
+                        <p className="font-semibold">{formatUsd(entryFee + slExitFee + totalTpExitFees)}</p>
                       </div>
                       <div className="text-center">
                         <p className="text-muted-foreground">Breakeven</p>
@@ -330,9 +351,9 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
                     </div>
                   </div>
                   
-                  {tpSize < sizeNum && (
+                  {totalTpSize < sizeNum && (
                     <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
-                      ⚠️ TP order is only {((tpSize / sizeNum) * 100).toFixed(0)}% of position. R:R calculated for partial exit.
+                      ⚠️ TP orders total {((totalTpSize / sizeNum) * 100).toFixed(0)}% of position. R:R calculated for partial exit.
                     </div>
                   )}
                 </div>
