@@ -173,6 +173,42 @@ export default function DailyTarget() {
                   </p>
                 </div>
 
+                <div className="pt-4 border-t">
+                  <h4 className="text-sm font-semibold mb-3">Fixed Trading Parameters (Optional)</h4>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <label className="text-sm font-medium">Fixed Leverage Ratio (%)</label>
+                      <Input
+                        type="number"
+                        value={tempTarget.fixedLeverageRatio || ''}
+                        onChange={(e) => setTempTarget({ ...tempTarget, fixedLeverageRatio: e.target.value ? parseFloat(e.target.value) : undefined })}
+                        placeholder="25"
+                        min="1"
+                        max="100"
+                        step="1"
+                      />
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Use a fixed percentage of max leverage (e.g., 25% of 20x = 5x)
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="text-sm font-medium">Fixed Risk:Reward Ratio</label>
+                      <Input
+                        type="number"
+                        value={tempTarget.fixedRR || ''}
+                        onChange={(e) => setTempTarget({ ...tempTarget, fixedRR: e.target.value ? parseFloat(e.target.value) : undefined })}
+                        placeholder="3"
+                        min="0.1"
+                        step="0.1"
+                      />
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Auto-calculate TP & SL based on this R:R (e.g., 3 for 1:3 ratio)
+                      </p>
+                    </div>
+                  </div>
+                </div>
 
                 <Button onClick={handleSave} className="w-full">
                   Save Target

@@ -20,31 +20,48 @@ interface TradeCalculatorProps {
 export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, startOfDayPerpsValue }: TradeCalculatorProps) {
   const hlService = new HyperliquidService();
   const { balance } = useBalanceUpdater(walletAddress);
-  const [defaultCoin, setDefaultCoin] = useLocalStorage<string>(STORAGE_KEYS.DEFAULT_COIN, "ETH");
   
+  const [isLong, setIsLong] = React.useState(true);
   const [entry, setEntry] = React.useState<string>("");
   const [stopLoss, setStopLoss] = React.useState<string>("");
   const [takeProfit, setTakeProfit] = React.useState<string>("");
-  const [tempCoin, setTempCoin] = React.useState(defaultCoin);
   const [manualPositionSize, setManualPositionSize] = React.useState<string>("");
   
   const currentPerpsValue = balance?.perpsValue || 0;
   
+  // Get the coin based on direction
+  const coin = isLong ? advancedSettings.defaultLongCrypto : advancedSettings.defaultShortCrypto;
+  
   // Parse input values
   const entryPrice = parseFloat(entry) || 0;
-  const slPrice = parseFloat(stopLoss) || 0;
-  const tpPrice = parseFloat(takeProfit) || 0;
+  let slPrice = parseFloat(stopLoss) || 0;
+  let tpPrice = parseFloat(takeProfit) || 0;
   
-  // Determine if it's a long or short trade based on TP vs SL
-  // Long: TP > SL (regardless of where SL is relative to entry - can be above entry when protecting profits)
-  // Short: TP < SL (regardless of where SL is relative to entry - can be below entry when protecting profits)
-  const isLong = tpPrice > slPrice;
+  // Auto-calculate TP & SL if fixed R:R is set and entry is provided
+  React.useEffect(() => {
+    if (dailyTarget.fixedRR && entryPrice > 0 && !stopLoss && !takeProfit) {
+      // Calculate a 1% risk as default
+      const riskAmount = entryPrice * 0.01;
+      const rewardAmount = riskAmount * dailyTarget.fixedRR;
+      
+      if (isLong) {
+        setStopLoss((entryPrice - riskAmount).toFixed(4));
+        setTakeProfit((entryPrice + rewardAmount).toFixed(4));
+      } else {
+        setStopLoss((entryPrice + riskAmount).toFixed(4));
+        setTakeProfit((entryPrice - rewardAmount).toFixed(4));
+      }
+    }
+  }, [entryPrice, isLong, dailyTarget.fixedRR, stopLoss, takeProfit]);
+  
+  // Re-parse after potential auto-calculation
+  slPrice = parseFloat(stopLoss) || 0;
+  tpPrice = parseFloat(takeProfit) || 0;
   
   // Calculate risk and reward percentages
-  // For risk: when SL is moved to protect profits, risk can be negative (guaranteed profit)
   const riskPercentage = isLong 
-    ? ((entryPrice - slPrice) / entryPrice) * 100  // Positive when SL < entry, negative when SL > entry
-    : ((slPrice - entryPrice) / entryPrice) * 100; // Positive when SL > entry, negative when SL < entry
+    ? ((entryPrice - slPrice) / entryPrice) * 100
+    : ((slPrice - entryPrice) / entryPrice) * 100;
     
   const rewardPercentage = isLong
     ? ((tpPrice - entryPrice) / entryPrice) * 100
@@ -63,6 +80,14 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   // Parse manual position size (in coins)
   const manualSizeInCoins = parseFloat(manualPositionSize) || 0;
   
+  // Get leverage for the specific crypto or use default
+  const maxLeverage = advancedSettings.leverageMap[coin] || advancedSettings.defaultLeverage || 10;
+  
+  // Calculate effective leverage if fixed leverage ratio is set
+  const effectiveLeverage = dailyTarget.fixedLeverageRatio 
+    ? (maxLeverage * dailyTarget.fixedLeverageRatio / 100)
+    : maxLeverage;
+  
   // If manual position size is provided, calculate USD value
   // Otherwise, calculate position size based on target
   let positionSize: number;
@@ -72,6 +97,11 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
     // Use manual position size
     positionSizeInCoins = manualSizeInCoins;
     positionSize = manualSizeInCoins * entryPrice;
+  } else if (dailyTarget.fixedLeverageRatio && startOfDayPerpsValue > 0 && entryPrice > 0) {
+    // Use fixed leverage ratio to calculate position size
+    const marginAvailable = startOfDayPerpsValue;
+    positionSize = marginAvailable * effectiveLeverage;
+    positionSizeInCoins = positionSize / entryPrice;
   } else {
     // Calculate position size so that net reward (after fees) equals target
     const netRewardPercentage = (rewardPercentage / 100) - totalFeePercentage;
@@ -83,18 +113,33 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   const feeCost = positionSize * totalFeePercentage;
   const riskDollar = positionSize * (riskPercentage / 100);
   const rewardDollar = positionSize * (rewardPercentage / 100);
-  const netReward = rewardDollar - feeCost; // This should equal targetProfitPerTrade
-  const netLoss = riskDollar + feeCost; // Total loss including fees
+  const netReward = rewardDollar - feeCost;
+  const netLoss = riskDollar + feeCost;
   
   // Calculate effective R:R after fees
   const effectiveRR = netLoss > 0 ? netReward / netLoss : 0;
   
-  // Get leverage for the specific crypto or use default
-  const leverage = advancedSettings.leverageMap[tempCoin] || advancedSettings.defaultLeverage || 10;
-  const marginRequired = positionSize / leverage;
+  const marginRequired = positionSize / effectiveLeverage;
   
   // Calculate account risk percentage (using net loss including fees)
   const accountRiskPercentage = startOfDayPerpsValue > 0 ? (netLoss / startOfDayPerpsValue) * 100 : 0;
+  
+  // Calculate SL BE (Breakeven) price including fees
+  const feePercentagePerSide = advancedSettings.takerFee / 100;
+  const totalFeeForBreakeven = feePercentagePerSide * 2; // Entry + Exit fees
+  
+  let slBePrice = 0;
+  if (entryPrice > 0) {
+    if (isLong) {
+      // For long: BE price = entry * (1 + total fees)
+      slBePrice = entryPrice * (1 + totalFeeForBreakeven);
+    } else {
+      // For short: BE price = entry * (1 - total fees)
+      slBePrice = entryPrice * (1 - totalFeeForBreakeven);
+    }
+  }
+  
+  const beMovementPercentage = Math.abs((slBePrice - entryPrice) / entryPrice * 100);
   
   const handleCopyTrade = () => {
     if (!entryPrice || !slPrice || !tpPrice) {
@@ -104,7 +149,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
     
     const emoji = isLong ? "🟢" : "🔴";
     const direction = isLong ? "Long" : "Short";
-    const tradeText = `${emoji} ${direction} ${tempCoin} entry ${entry}, SL ${stopLoss}, TP ${takeProfit}`;
+    const tradeText = `${emoji} ${direction} ${coin} entry ${entry}, SL ${stopLoss}, TP ${takeProfit}`;
     
     navigator.clipboard.writeText(tradeText);
     toast.success("Trade copied to clipboard!", {
@@ -112,14 +157,9 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
     });
   };
   
-  const handleSaveCoin = () => {
-    setDefaultCoin(tempCoin);
-    toast.success(`Default coin set to ${tempCoin}`);
-  };
-  
   const isValid = entryPrice > 0 && slPrice > 0 && tpPrice > 0 && 
-    ((isLong && tpPrice > slPrice) ||  // Long: TP must be higher than SL
-     (!isLong && tpPrice < slPrice));  // Short: TP must be lower than SL
+    ((isLong && tpPrice > slPrice) ||
+     (!isLong && tpPrice < slPrice));
 
   return (
     <Card>
@@ -134,37 +174,39 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-2 gap-2">
-          <Input
-            placeholder="Coin (e.g., ETH)"
-            value={tempCoin}
-            onChange={(e) => setTempCoin(e.target.value.toUpperCase())}
-            className="font-mono"
-          />
-          <Button 
-            onClick={handleSaveCoin} 
-            variant="outline"
-            size="sm"
+          <Button
+            variant={isLong ? "default" : "outline"}
+            onClick={() => setIsLong(true)}
+            className="font-semibold"
           >
-            Set Default
+            🟢 Long ({advancedSettings.defaultLongCrypto})
+          </Button>
+          <Button
+            variant={!isLong ? "default" : "outline"}
+            onClick={() => setIsLong(false)}
+            className="font-semibold"
+          >
+            🔴 Short ({advancedSettings.defaultShortCrypto})
           </Button>
         </div>
         
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <label className="text-xs text-muted-foreground">Entry Price</label>
-            <Input
-              type="number"
-              placeholder="2511"
-              value={entry}
-              onChange={(e) => setEntry(e.target.value)}
-              step="0.01"
-            />
-          </div>
+        <div>
+          <label className="text-xs text-muted-foreground">Entry Price</label>
+          <Input
+            type="number"
+            placeholder={isLong ? "2511" : "32100"}
+            value={entry}
+            onChange={(e) => setEntry(e.target.value)}
+            step="0.01"
+          />
+        </div>
+        
+        <div className="grid grid-cols-2 gap-2">
           <div>
             <label className="text-xs text-muted-foreground">Stop Loss</label>
             <Input
               type="number"
-              placeholder="2500"
+              placeholder={isLong ? "2500" : "32500"}
               value={stopLoss}
               onChange={(e) => setStopLoss(e.target.value)}
               step="0.01"
@@ -174,7 +216,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
             <label className="text-xs text-muted-foreground">Take Profit</label>
             <Input
               type="number"
-              placeholder="2540"
+              placeholder={isLong ? "2540" : "31500"}
               value={takeProfit}
               onChange={(e) => setTakeProfit(e.target.value)}
               step="0.01"
@@ -182,11 +224,17 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
           </div>
         </div>
         
+        {dailyTarget.fixedRR && (
+          <p className="text-xs text-muted-foreground">
+            Using fixed R:R ratio of 1:{dailyTarget.fixedRR}
+          </p>
+        )}
+        
         <div>
           <label className="text-xs text-muted-foreground">Position Size (Optional)</label>
           <Input
             type="number"
-            placeholder={`e.g., 1 ${tempCoin}`}
+            placeholder={`e.g., 1 ${coin}`}
             value={manualPositionSize}
             onChange={(e) => setManualPositionSize(e.target.value)}
             step="0.01"
@@ -194,8 +242,10 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
           />
           <p className="text-xs text-muted-foreground mt-1">
             {manualSizeInCoins > 0 
-              ? `Using manual size: ${manualSizeInCoins} ${tempCoin} = ${hlService.formatUsdValue(positionSize)}`
-              : "Leave empty to auto-calculate based on daily target"}
+              ? `Using manual size: ${manualSizeInCoins} ${coin} = ${hlService.formatUsdValue(positionSize)}`
+              : dailyTarget.fixedLeverageRatio
+                ? `Using fixed leverage: ${effectiveLeverage.toFixed(1)}x (${dailyTarget.fixedLeverageRatio}% of ${maxLeverage}x)`
+                : "Leave empty to auto-calculate based on daily target"}
           </p>
         </div>
         
@@ -206,9 +256,9 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
                 <p className="text-xs text-muted-foreground">Direction</p>
                 <p className="text-lg font-bold flex items-center gap-1">
                   {isLong ? (
-                    <>🟢 Long</>
+                    <>🟢 Long {coin}</>
                   ) : (
-                    <>🔴 Short</>
+                    <>🔴 Short {coin}</>
                   )}
                 </p>
               </div>
@@ -220,9 +270,15 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
             </div>
             
             <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
-              <p className="text-xs font-medium mb-2">Position Sizing {manualSizeInCoins > 0 ? "(Manual Entry)" : "(Based on Daily Target)"}</p>
+              <p className="text-xs font-medium mb-2">
+                Position Sizing {manualSizeInCoins > 0 
+                  ? "(Manual Entry)" 
+                  : dailyTarget.fixedLeverageRatio 
+                    ? "(Fixed Leverage)" 
+                    : "(Based on Daily Target)"}
+              </p>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                {manualSizeInCoins === 0 && (
+                {!manualSizeInCoins && !dailyTarget.fixedLeverageRatio && (
                   <div>
                     <p className="text-muted-foreground">Target per trade:</p>
                     <p className="font-semibold">{hlService.formatUsdValue(targetProfitPerTrade)}</p>
@@ -230,16 +286,34 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
                 )}
                 <div>
                   <p className="text-muted-foreground">Position size:</p>
-                  <p className="font-semibold text-primary">{positionSizeInCoins.toFixed(4)} {tempCoin}</p>
+                  <p className="font-semibold text-primary">{positionSizeInCoins.toFixed(4)} {coin}</p>
                   <p className="text-xs text-muted-foreground">{hlService.formatUsdValue(positionSize)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">Leverage:</p>
-                  <p className="font-semibold">{leverage}x</p>
+                  <p className="font-semibold">{effectiveLeverage.toFixed(1)}x</p>
+                  {dailyTarget.fixedLeverageRatio && (
+                    <p className="text-xs text-muted-foreground">({dailyTarget.fixedLeverageRatio}% of {maxLeverage}x)</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-muted-foreground">Margin required:</p>
                   <p className="font-semibold">{hlService.formatUsdValue(marginRequired)}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+              <p className="text-xs font-medium mb-1">Breakeven Analysis</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div>
+                  <p className="text-muted-foreground">SL BE Price:</p>
+                  <p className="font-semibold">{slBePrice.toFixed(4)}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Movement to BE:</p>
+                  <p className="font-semibold">{beMovementPercentage.toFixed(3)}%</p>
+                  <p className="text-xs text-muted-foreground">({(advancedSettings.takerFee * 2).toFixed(2)}% fees)</p>
                 </div>
               </div>
             </div>
@@ -268,7 +342,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
                   +{hlService.formatUsdValue(netReward)}
                 </p>
                 <p className="text-xs text-green-600/80">
-                  Target achieved!
+                  {!manualSizeInCoins && !dailyTarget.fixedLeverageRatio ? "Target achieved!" : `Profit: ${hlService.formatUsdValue(netReward)}`}
                 </p>
               </div>
             </div>
@@ -276,10 +350,11 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
               <p className="text-xs font-medium mb-1">Trade Setup Summary</p>
               <ul className="text-xs space-y-0.5 text-muted-foreground">
-                <li>• {tempCoin} {isLong ? "Long" : "Short"} @ {entry}</li>
-                <li>• Position: <span className="font-semibold text-foreground">{positionSizeInCoins.toFixed(4)} {tempCoin}</span> ({hlService.formatUsdValue(positionSize)}, {leverage}x leverage)</li>
+                <li>• {coin} {isLong ? "Long" : "Short"} @ {entry}</li>
+                <li>• Position: <span className="font-semibold text-foreground">{positionSizeInCoins.toFixed(4)} {coin}</span> ({hlService.formatUsdValue(positionSize)}, {effectiveLeverage.toFixed(1)}x leverage)</li>
                 <li>• Target: <span className="font-semibold text-green-600">{takeProfit}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(netReward)} net)</li>
                 <li>• Stop: <span className={`font-semibold ${riskPercentage < 0 ? 'text-green-600' : 'text-red-600'}`}>{stopLoss}</span> ({riskPercentage < 0 ? '+' : '-'}{Math.abs(riskPercentage).toFixed(2)}%, {riskPercentage < 0 ? `${hlService.formatUsdValue(Math.abs(netLoss))} min profit` : `${hlService.formatUsdValue(netLoss)} total loss`})</li>
+                <li>• SL BE: <span className="font-semibold">{slBePrice.toFixed(4)}</span> ({beMovementPercentage.toFixed(3)}% move to breakeven)</li>
                 <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> ({hlService.formatUsdValue(feeCost)})</li>
                 <li>• Effective R:R: <span className="font-semibold">1:{effectiveRR.toFixed(2)}</span> (after fees)</li>
               </ul>

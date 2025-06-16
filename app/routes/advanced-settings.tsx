@@ -270,6 +270,38 @@ export default function AdvancedSettings() {
             </div>
 
             <div className="pt-6 border-t">
+              <h3 className="font-semibold mb-4">Default Trading Cryptos</h3>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="text-sm font-medium">Default Long Crypto</label>
+                  <Input
+                    type="text"
+                    value={tempSettings.defaultLongCrypto}
+                    onChange={(e) => setTempSettings({ ...tempSettings, defaultLongCrypto: e.target.value.toUpperCase() })}
+                    placeholder="ETH"
+                    className="font-mono"
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Default crypto for long positions
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Default Short Crypto</label>
+                  <Input
+                    type="text"
+                    value={tempSettings.defaultShortCrypto}
+                    onChange={(e) => setTempSettings({ ...tempSettings, defaultShortCrypto: e.target.value.toUpperCase() })}
+                    placeholder="BTC"
+                    className="font-mono"
+                  />
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Default crypto for short positions
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t">
               <h3 className="font-semibold mb-4">Trading Time Periods</h3>
               
               {/* Preferred Trading Times */}

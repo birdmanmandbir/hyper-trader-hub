@@ -15,9 +15,13 @@ export interface AdvancedSettings {
   avoidedTradingTimes: TimePeriod[]; // Times to avoid trading
   leverageMap: Record<string, number>; // Per-crypto leverage settings, e.g., { "ETH": 25, "BTC": 40 }
   defaultLeverage: number; // Default leverage for cryptos not in the map
+  defaultLongCrypto: string; // Default crypto for long positions, e.g., "ETH"
+  defaultShortCrypto: string; // Default crypto for short positions, e.g., "BTC"
 }
 
 export interface DailyTarget {
   targetPercentage: number;
   minimumTrades: number;
+  fixedLeverageRatio?: number; // Percentage of max leverage to use, e.g., 25 for 25%
+  fixedRR?: number; // Fixed risk-reward ratio, e.g., 3 for 1:3 R:R
 }

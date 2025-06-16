@@ -10,6 +10,8 @@ export const DEFAULT_ADVANCED_SETTINGS: AdvancedSettings = {
   avoidedTradingTimes: [],
   leverageMap: { "ETH": 25, "BTC": 40, "ADA": 10 },
   defaultLeverage: 10,
+  defaultLongCrypto: "ETH",
+  defaultShortCrypto: "BTC",
 };
 
 // Default values for Daily Target
