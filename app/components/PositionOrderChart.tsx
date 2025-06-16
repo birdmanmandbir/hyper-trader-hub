@@ -214,7 +214,7 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
             className="w-full flex items-center justify-between p-0 h-auto hover:bg-transparent"
             onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
           >
-            <span className="text-xs font-medium flex items-center gap-1">
+            <span className="text-sm font-medium flex items-center gap-1">
               📊 Position Analysis
             </span>
             {isAnalysisOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
