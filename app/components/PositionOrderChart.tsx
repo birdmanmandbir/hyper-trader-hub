@@ -1,6 +1,9 @@
 import * as React from "react";
 import { useLivePrice } from "~/hooks/useLivePrice";
 import type { Order } from "~/lib/hyperliquid";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Button } from "~/components/ui/button";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 interface PositionOrderChartProps {
   coin: string;
@@ -8,10 +11,13 @@ interface PositionOrderChartProps {
   side: string; // Size value, positive for long, negative for short
   orders: Order[];
   positionSize?: string; // Added to calculate dollar PnL
+  takerFee?: number; // Fee for market/stop orders (in percentage, e.g., 0.04)
+  makerFee?: number; // Fee for limit orders (in percentage, e.g., 0.012)
 }
 
-export function PositionOrderChart({ coin, entryPrice, side, orders, positionSize }: PositionOrderChartProps) {
+export function PositionOrderChart({ coin, entryPrice, side, orders, positionSize, takerFee = 0.04, makerFee = 0.012 }: PositionOrderChartProps) {
   const { price: currentPrice } = useLivePrice(coin);
+  const [isAnalysisOpen, setIsAnalysisOpen] = React.useState(false);
   const isLong = parseFloat(side) > 0;
   
   const entry = parseFloat(entryPrice);
@@ -199,6 +205,142 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
           </div>
         )}
       </div>
+      
+      {/* Collapsible Setup Analysis */}
+      <Card className="mt-3">
+        <CardHeader className="py-3 px-4">
+          <Button
+            variant="ghost"
+            className="w-full flex items-center justify-between p-0 h-auto hover:bg-transparent"
+            onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
+          >
+            <CardTitle className="text-sm">Setup Analysis</CardTitle>
+            {isAnalysisOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+          </Button>
+        </CardHeader>
+        
+        {isAnalysisOpen && (
+          <CardContent className="pt-0 px-4 pb-4">
+            {(() => {
+              // Calculate risk and reward with fees
+              const positionValue = entry * sizeNum;
+              
+              // Entry fees (taker fee for market entry)
+              const entryFee = positionValue * (takerFee / 100);
+              
+              // Find first SL and TP orders
+              const firstSL = slOrders[0];
+              const firstTP = tpOrders[0];
+              
+              if (!firstSL || !firstTP) {
+                return (
+                  <p className="text-sm text-muted-foreground">
+                    Complete setup analysis requires both SL and TP orders
+                  </p>
+                );
+              }
+              
+              const slPrice = firstSL.triggerPx ? parseFloat(firstSL.triggerPx) : parseFloat(firstSL.limitPx);
+              const tpPrice = parseFloat(firstTP.limitPx);
+              const tpSize = parseFloat(firstTP.sz);
+              
+              // Calculate SL risk
+              const slPriceMove = Math.abs(slPrice - entry);
+              const slLossPerCoin = isLong ? (entry - slPrice) : (slPrice - entry);
+              const slLossBeforeFees = slLossPerCoin * sizeNum;
+              const slExitFee = (slPrice * sizeNum) * (takerFee / 100); // Stop market uses taker fee
+              const totalSlLoss = slLossBeforeFees + entryFee + slExitFee;
+              const slPercentMove = (slPriceMove / entry) * 100;
+              
+              // Calculate TP reward (for the TP order size, not full position)
+              const tpPriceMove = Math.abs(tpPrice - entry);
+              const tpProfitPerCoin = isLong ? (tpPrice - entry) : (entry - tpPrice);
+              const tpProfitBeforeFees = tpProfitPerCoin * tpSize;
+              const tpExitFee = (tpPrice * tpSize) * (makerFee / 100); // Limit order uses maker fee
+              const tpEntryFeeProportional = entryFee * (tpSize / sizeNum); // Proportional entry fee
+              const totalTpProfit = tpProfitBeforeFees - tpEntryFeeProportional - tpExitFee;
+              const tpPercentMove = (tpPriceMove / entry) * 100;
+              
+              // R:R calculation
+              const rrRatio = totalSlLoss > 0 ? totalTpProfit / totalSlLoss : 0;
+              
+              return (
+                <div className="space-y-3">
+                  {/* Risk Analysis */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase">Risk (Stop Loss)</h4>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <p className="text-muted-foreground">Price Move:</p>
+                        <p className="font-semibold text-red-600">-{slPercentMove.toFixed(2)}%</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Total Loss:</p>
+                        <p className="font-semibold text-red-600">-{formatUsd(totalSlLoss)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Entry Fee:</p>
+                        <p className="text-xs">{formatUsd(entryFee)} ({takerFee}%)</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Exit Fee:</p>
+                        <p className="text-xs">{formatUsd(slExitFee)} ({takerFee}%)</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Reward Analysis */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase">Reward (Take Profit)</h4>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <p className="text-muted-foreground">Price Move:</p>
+                        <p className="font-semibold text-green-600">+{tpPercentMove.toFixed(2)}%</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Net Profit:</p>
+                        <p className="font-semibold text-green-600">+{formatUsd(totalTpProfit)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">TP Size:</p>
+                        <p className="text-xs">{tpSize} {coin} ({((tpSize / sizeNum) * 100).toFixed(0)}%)</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Exit Fee:</p>
+                        <p className="text-xs">{formatUsd(tpExitFee)} ({makerFee}%)</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Summary */}
+                  <div className="pt-2 border-t">
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="text-center">
+                        <p className="text-muted-foreground">Risk:Reward</p>
+                        <p className="font-bold text-lg">1:{rrRatio.toFixed(2)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground">Total Fees</p>
+                        <p className="font-semibold">{formatUsd(entryFee + slExitFee + tpExitFee)}</p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-muted-foreground">Breakeven</p>
+                        <p className="font-semibold">{((entryFee / positionValue) * 100).toFixed(3)}%</p>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {tpSize < sizeNum && (
+                    <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
+                      ⚠️ TP order is only {((tpSize / sizeNum) * 100).toFixed(0)}% of position. R:R calculated for partial exit.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </CardContent>
+        )}
+      </Card>
     </div>
   );
 }

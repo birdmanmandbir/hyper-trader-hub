@@ -4,6 +4,9 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { HyperliquidService, type BalanceInfo } from "~/lib/hyperliquid";
 import { PositionOrderChart } from "~/components/PositionOrderChart";
+import { useLocalStorage } from "~/hooks/useLocalStorage";
+import { DEFAULT_ADVANCED_SETTINGS, STORAGE_KEYS } from "~/lib/constants";
+import type { AdvancedSettings } from "~/lib/types";
 
 interface StoredBalance {
   accountValue: number;
@@ -24,6 +27,10 @@ interface BalanceDisplayProps {
 
 export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoading, onDisconnect }: BalanceDisplayProps) {
   const hlService = new HyperliquidService();
+  const [advancedSettings] = useLocalStorage<AdvancedSettings>(
+    STORAGE_KEYS.ADVANCED_SETTINGS,
+    DEFAULT_ADVANCED_SETTINGS
+  );
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -223,6 +230,8 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
                         side={position.szi}
                         orders={balances.orders}
                         positionSize={position.marginUsed}
+                        takerFee={advancedSettings.takerFee}
+                        makerFee={advancedSettings.makerFee}
                       />
                     </div>
                   )}
