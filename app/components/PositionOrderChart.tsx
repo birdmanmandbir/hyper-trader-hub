@@ -206,16 +206,18 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
         )}
       </div>
       
-      {/* Collapsible Setup Analysis */}
+      {/* Collapsible Position Analysis */}
       <Card className="mt-3">
-        <CardHeader className="py-3 px-4">
+        <CardHeader className="py-2 px-3">
           <Button
             variant="ghost"
             className="w-full flex items-center justify-between p-0 h-auto hover:bg-transparent"
             onClick={() => setIsAnalysisOpen(!isAnalysisOpen)}
           >
-            <CardTitle className="text-xs font-medium">Setup Analysis</CardTitle>
-            {isAnalysisOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            <span className="text-xs font-medium flex items-center gap-1">
+              📊 Position Analysis
+            </span>
+            {isAnalysisOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
           </Button>
         </CardHeader>
         
