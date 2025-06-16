@@ -1,6 +1,5 @@
 import * as React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
-import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "~/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
@@ -25,10 +24,8 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   const { balance } = useBalanceUpdater(walletAddress);
   
   const [isLong, setIsLong] = React.useState(true);
-  const [entry, setEntry] = React.useState<string>("");
   const [selectedCoin, setSelectedCoin] = React.useState<string>("");
   const [openCombobox, setOpenCombobox] = React.useState(false);
-  const [useManualPrice, setUseManualPrice] = React.useState(false);
   
   const currentPerpsValue = balance?.perpsValue || 0;
   
@@ -44,15 +41,8 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   // Get live price for the selected coin
   const { price: livePrice, isConnected, error: priceError } = useLivePrice(coin);
   
-  // Use live price if available and manual price is not set
-  React.useEffect(() => {
-    if (livePrice && !useManualPrice) {
-      setEntry(livePrice);
-    }
-  }, [livePrice, useManualPrice]);
-  
-  // Parse input values
-  const entryPrice = parseFloat(entry) || 0;
+  // Parse live price
+  const entryPrice = parseFloat(livePrice) || 0;
   
   // Dynamic precision based on entry price
   const pricePrecision = entryPrice >= 1 ? 1 : 3;
@@ -172,7 +162,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
     
     const emoji = isLong ? "🟢" : "🔴";
     const direction = isLong ? "Long" : "Short";
-    const tradeText = `${emoji} ${direction} ${coin} entry ${entry}, SL ${slPrice.toFixed(pricePrecision)}, TP ${tpPrice.toFixed(pricePrecision)}`;
+    const tradeText = `${emoji} ${direction} ${coin} entry ${livePrice}, SL ${slPrice.toFixed(pricePrecision)}, TP ${tpPrice.toFixed(pricePrecision)}`;
     
     navigator.clipboard.writeText(tradeText);
     toast.success("Trade copied to clipboard!", {
@@ -258,8 +248,8 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
           </div>
         </div>
         
-        <div>
-          <label className="text-xs text-muted-foreground flex items-center justify-between">
+        <div className="p-3 bg-muted rounded-lg">
+          <label className="text-xs text-muted-foreground flex items-center justify-between mb-1">
             <span>Entry Price</span>
             {isConnected && (
               <span className="text-green-600 flex items-center gap-1">
@@ -271,34 +261,21 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
               <span className="text-red-600 text-xs">Price feed error</span>
             )}
           </label>
-          <Input
-            type="number"
-            placeholder={livePrice || (isLong ? "2511" : "32100")}
-            value={entry}
-            onChange={(e) => {
-              setEntry(e.target.value);
-              setUseManualPrice(true);
-            }}
-            onFocus={() => {
-              if (livePrice && !useManualPrice) {
-                setEntry(livePrice);
-              }
-            }}
-            step="0.01"
-            autoFocus
-          />
-          {useManualPrice && livePrice && (
-            <Button
-              size="sm"
-              variant="ghost"
-              className="w-full mt-1 h-6 text-xs"
-              onClick={() => {
-                setEntry(livePrice);
-                setUseManualPrice(false);
-              }}
-            >
-              Use live price ({livePrice})
-            </Button>
+          {livePrice ? (
+            <div className="flex items-center justify-between">
+              <p className="font-mono font-semibold text-lg">{livePrice}</p>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-6 text-xs"
+                onClick={() => handleCopyPrice(entryPrice, "Entry price")}
+              >
+                <Copy className="w-3 h-3 mr-1" />
+                Copy
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Waiting for price feed...</p>
           )}
         </div>
         
@@ -457,7 +434,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
               <p className="text-xs font-medium mb-1">Trade Setup Summary</p>
               <ul className="text-xs space-y-0.5 text-muted-foreground">
-                <li>• {coin} {isLong ? "Long" : "Short"} @ {entry}</li>
+                <li>• {coin} {isLong ? "Long" : "Short"} @ {livePrice}</li>
                 <li>• Position: <span className="font-semibold text-foreground">{positionSizeInCoins.toFixed(4)} {coin}</span> ({hlService.formatUsdValue(positionSize)}, {effectiveLeverage.toFixed(1)}x leverage)</li>
                 <li>• Target: <span className="font-semibold text-green-600">{tpPrice.toFixed(pricePrecision)}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(targetProfitPerTrade)} net)</li>
                 <li>• Stop: <span className="font-semibold text-red-600">{slPrice.toFixed(pricePrecision)}</span> (-{riskPercentage.toFixed(2)}%, {hlService.formatUsdValue(riskDollar)} total loss)</li>
