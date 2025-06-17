@@ -67,4 +67,6 @@ export const CRYPTO_LIST = [
   "SHIB",
   "FLOKI",
   "BONK",
+  "HYPE",
+  "kPEPE",
 ] as const;
