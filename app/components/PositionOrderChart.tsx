@@ -119,16 +119,17 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
           const price = order.triggerPx ? parseFloat(order.triggerPx) : parseFloat(order.limitPx);
           const position = priceToPercent(price);
           const slDistance = Math.abs(((price - entry) / entry) * 100);
-          const slLoss = Math.abs(price - entry) * sizeNum;
+          const slPnL = (isLong ? (price - entry) : (entry - price)) * sizeNum;
+          const isProfit = slPnL > 0;
           
           return (
             <div
               key={`sl-${idx}`}
-              className="absolute top-0 bottom-0 w-1 bg-red-500 hover:w-2 transition-all cursor-pointer"
+              className={`absolute top-0 bottom-0 w-1 ${isProfit ? 'bg-green-500' : 'bg-red-500'} hover:w-2 transition-all cursor-pointer`}
               style={{ left: `${position}%` }}
-              title={`Stop Loss: ${formatPrice(price)} (-${slDistance.toFixed(2)}% / -${formatUsd(slLoss)})`}
+              title={`Stop Loss: ${formatPrice(price)} (${isProfit ? '+' : '-'}${slDistance.toFixed(2)}% / ${isProfit ? '+' : ''}${formatUsd(slPnL)})${isProfit ? ' - Profit Protected!' : ''}`}
             >
-              <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-red-600 whitespace-nowrap">
+              <div className={`absolute -top-6 left-1/2 -translate-x-1/2 text-xs ${isProfit ? 'text-green-600' : 'text-red-600'} whitespace-nowrap`}>
                 SL {formatPrice(price)}
               </div>
             </div>
@@ -202,6 +203,13 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-red-500 rounded" />
             <span>Stop Loss</span>
+            {slOrders.some(order => {
+              const price = order.triggerPx ? parseFloat(order.triggerPx) : parseFloat(order.limitPx);
+              const slPnL = (isLong ? (price - entry) : (entry - price)) * sizeNum;
+              return slPnL > 0;
+            }) && (
+              <span className="text-green-600">(in profit)</span>
+            )}
           </div>
         )}
       </div>
@@ -243,12 +251,18 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
               
               const slPrice = firstSL.triggerPx ? parseFloat(firstSL.triggerPx) : parseFloat(firstSL.limitPx);
               
-              // Calculate SL risk
+              // Calculate SL risk (can be negative if SL is in profit)
               const slPriceMove = Math.abs(slPrice - entry);
               const slLossPerCoin = isLong ? (entry - slPrice) : (slPrice - entry);
               const slLossBeforeFees = slLossPerCoin * sizeNum;
               const slExitFee = (slPrice * sizeNum) * (takerFee / 100); // Stop market uses taker fee
-              const totalSlLoss = slLossBeforeFees + entryFee + slExitFee;
+              
+              // If slLossBeforeFees is negative, it means we're in profit (SL above entry for long, below for short)
+              // In this case, we should subtract fees from the profit, not add them to a loss
+              const totalSlLoss = slLossBeforeFees < 0 
+                ? slLossBeforeFees - entryFee - slExitFee  // Profit scenario: subtract fees from profit
+                : slLossBeforeFees + entryFee + slExitFee; // Loss scenario: add fees to loss
+              
               const slPercentMove = (slPriceMove / entry) * 100;
               
               // Calculate total TP reward (sum of all TP orders)
@@ -278,21 +292,32 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
               const totalTpProfit = totalTpProfitBeforeFees - tpEntryFeeProportional - totalTpExitFees;
               
               // R:R calculation
-              const rrRatio = totalSlLoss > 0 ? totalTpProfit / totalSlLoss : 0;
+              // When SL is in profit (totalSlLoss < 0), we need a different calculation
+              const rrRatio = totalSlLoss > 0 
+                ? totalTpProfit / totalSlLoss  // Normal R:R when risking capital
+                : totalSlLoss < 0 && totalTpProfit > Math.abs(totalSlLoss)
+                  ? (totalTpProfit - Math.abs(totalSlLoss)) / Math.abs(totalSlLoss)  // Additional profit beyond guaranteed profit
+                  : 0; // Invalid scenario or no additional reward beyond guaranteed profit
               
               return (
                 <div className="space-y-3">
                   {/* Risk Analysis */}
                   <div className="space-y-2">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase">Risk (Stop Loss)</h4>
+                    <h4 className="text-xs font-semibold text-muted-foreground uppercase">
+                      {totalSlLoss < 0 ? "Profit Protection (Stop Loss)" : "Risk (Stop Loss)"}
+                    </h4>
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
                         <p className="text-muted-foreground">Price Move:</p>
-                        <p className="font-semibold text-red-600">-{slPercentMove.toFixed(2)}%</p>
+                        <p className={`font-semibold ${totalSlLoss < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {totalSlLoss < 0 ? '+' : '-'}{slPercentMove.toFixed(2)}%
+                        </p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">Total Loss:</p>
-                        <p className="font-semibold text-red-600">-{formatUsd(totalSlLoss)}</p>
+                        <p className="text-muted-foreground">{totalSlLoss < 0 ? "Min Profit:" : "Total Loss:"}</p>
+                        <p className={`font-semibold ${totalSlLoss < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {totalSlLoss < 0 ? '+' : '-'}{formatUsd(Math.abs(totalSlLoss))}
+                        </p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">Entry Fee:</p>
@@ -339,8 +364,17 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
                   <div className="pt-2 border-t">
                     <div className="grid grid-cols-3 gap-2 text-xs">
                       <div className="text-center">
-                        <p className="text-muted-foreground">Risk:Reward</p>
-                        <p className="font-bold text-lg">1:{rrRatio.toFixed(2)}</p>
+                        <p className="text-muted-foreground">
+                          {totalSlLoss < 0 ? "Profit Multiple" : "Risk:Reward"}
+                        </p>
+                        <p className="font-bold text-lg">
+                          {totalSlLoss < 0 
+                            ? totalTpProfit > Math.abs(totalSlLoss) 
+                              ? `${(totalTpProfit / Math.abs(totalSlLoss)).toFixed(2)}x`
+                              : "Protected"
+                            : `1:${rrRatio.toFixed(2)}`
+                          }
+                        </p>
                       </div>
                       <div className="text-center">
                         <p className="text-muted-foreground">Max Fees</p>
@@ -356,6 +390,12 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
                   {totalTpSize < sizeNum * 0.99 && ( // Allow 1% tolerance for rounding
                     <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
                       ⚠️ TP orders total {((totalTpSize / sizeNum) * 100).toFixed(0)}% of position. R:R calculated for partial exit.
+                    </div>
+                  )}
+                  
+                  {totalSlLoss < 0 && (
+                    <div className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 p-2 rounded">
+                      ✅ Stop loss is in profit! You have locked in a minimum profit of {formatUsd(Math.abs(totalSlLoss))} after fees.
                     </div>
                   )}
                 </div>

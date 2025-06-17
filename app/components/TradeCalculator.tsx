@@ -154,6 +154,18 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
     toast.success(`${label} copied: ${priceText}`);
   };
   
+  const handleCopyPositionSize = () => {
+    if (positionSizeInCoins <= 0) {
+      toast.error("Position size not calculated yet");
+      return;
+    }
+    
+    // Use 4 decimal places for position size to maintain precision
+    const positionText = positionSizeInCoins.toFixed(4);
+    navigator.clipboard.writeText(positionText);
+    toast.success(`Position size copied: ${positionText} ${coin}`);
+  };
+  
   const handleCopyTrade = () => {
     if (!entryPrice || slPrice <= 0 || tpPrice <= 0) {
       toast.error("Please enter a valid entry price");
@@ -366,7 +378,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
                     size="sm"
                     variant="ghost"
                     className="h-6 text-xs mt-1"
-                    onClick={() => handleCopyPrice(positionSizeInCoins, "Position size")}
+                    onClick={handleCopyPositionSize}
                   >
                     <Copy className="w-3 h-3 mr-1" />
                     Copy
