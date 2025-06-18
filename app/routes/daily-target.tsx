@@ -26,7 +26,13 @@ export default function DailyTarget() {
   const [tempTarget, setTempTarget] = React.useState(target);
   const hlService = new HyperliquidService();
   const { balance, dailyStartBalance } = useBalanceUpdater(walletAddress);
-  const { currentStreak, unconfirmedStreak, longestStreak, updateDailyProgress, getStreakEmoji, streakThreshold, todayStatus } = useStreakTracking();
+  const { 
+    achievementStreak,
+    noLossStreak,
+    todayStatus,
+    updateDailyProgress,
+    resetStreak
+  } = useStreakTracking();
 
   const handleSave = () => {
     setTarget(tempTarget);
@@ -318,37 +324,81 @@ export default function DailyTarget() {
               <CardHeader className="pb-3">
                 <CardTitle className="flex items-center justify-between">
                   <span className="text-lg">Achievement Streak</span>
-                  <span className="text-2xl">{getStreakEmoji(unconfirmedStreak)}</span>
+                  <span className="text-2xl">{achievementStreak.getEmoji(achievementStreak.unconfirmed)}</span>
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="flex justify-between items-center">
                   <div>
-                    <p className="text-3xl font-bold">{unconfirmedStreak} days</p>
+                    <p className="text-3xl font-bold">{achievementStreak.unconfirmed} days</p>
                     <p className="text-sm text-muted-foreground">
-                      {unconfirmedStreak > currentStreak ? 'Potential streak (confirm tomorrow)' : `Confirmed: ${currentStreak} days`}
+                      {achievementStreak.unconfirmed > achievementStreak.current ? 'Potential streak (confirm tomorrow)' : `Confirmed: ${achievementStreak.current} days`}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-semibold text-muted-foreground">{longestStreak} days</p>
+                    <p className="text-lg font-semibold text-muted-foreground">{achievementStreak.longest} days</p>
                     <p className="text-sm text-muted-foreground">Best streak</p>
                   </div>
                 </div>
                 {!todayStatus.currentlyAboveThreshold && (
                   <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-900/20 rounded text-xs text-amber-800 dark:text-amber-200">
-                    ⚠️ Reach {streakThreshold}% of your target to qualify for today's streak!
+                    ⚠️ Reach {achievementStreak.threshold}% of your target to qualify for today's streak!
                   </div>
                 )}
                 {todayStatus.currentlyAboveThreshold && todayStatus.droppedBelowThreshold && (
                   <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-xs text-blue-800 dark:text-blue-200">
-                    ℹ️ You dropped below {streakThreshold}% earlier but recovered - finish above {streakThreshold}% to maintain streak!
+                    ℹ️ You dropped below {achievementStreak.threshold}% earlier but recovered - finish above {achievementStreak.threshold}% to maintain streak!
                   </div>
                 )}
                 {todayStatus.currentlyAboveThreshold && !todayStatus.droppedBelowThreshold && (
                   <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded text-xs text-green-800 dark:text-green-200">
-                    ✅ Great job! Stay above {streakThreshold}% to extend your streak!
+                    ✅ Great job! Stay above {achievementStreak.threshold}% to extend your streak!
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* No Significant Loss Streak Card - for newbies */}
+          {balance && dailyStartBalance && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between">
+                  <span className="text-lg">No Significant Loss Streak</span>
+                  <span className="text-2xl">{noLossStreak.getEmoji(noLossStreak.unconfirmed)}</span>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <p className="text-3xl font-bold">{noLossStreak.unconfirmed} days</p>
+                    <p className="text-sm text-muted-foreground">
+                      {noLossStreak.unconfirmed > noLossStreak.current ? 'Potential streak (confirm tomorrow)' : `Confirmed: ${noLossStreak.current} days`}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-semibold text-muted-foreground">{noLossStreak.longest} days</p>
+                    <p className="text-sm text-muted-foreground">Best streak</p>
+                  </div>
+                </div>
+                {!todayStatus.currentlyNoSignificantLoss && (
+                  <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 rounded text-xs text-red-800 dark:text-red-200">
+                    ⚠️ Current loss exceeds {noLossStreak.threshold}% of daily target - streak at risk!
+                  </div>
+                )}
+                {todayStatus.currentlyNoSignificantLoss && todayStatus.hadSignificantLoss && (
+                  <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-xs text-blue-800 dark:text-blue-200">
+                    ℹ️ You had a significant loss earlier but recovered - finish without exceeding {noLossStreak.threshold}% loss to maintain streak!
+                  </div>
+                )}
+                {todayStatus.currentlyNoSignificantLoss && !todayStatus.hadSignificantLoss && (
+                  <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded text-xs text-green-800 dark:text-green-200">
+                    ✅ Good risk management! Keep losses below {noLossStreak.threshold}% to extend your streak!
+                  </div>
+                )}
+                <div className="mt-3 p-2 bg-gray-50 dark:bg-gray-900/20 rounded text-xs text-gray-700 dark:text-gray-300">
+                  💡 This streak tracks consecutive days without significant losses (&gt;{noLossStreak.threshold}% of daily target) - perfect for building consistent habits!
+                </div>
               </CardContent>
             </Card>
           )}
