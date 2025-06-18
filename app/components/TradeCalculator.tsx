@@ -3,6 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Button } from "~/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "~/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "~/components/ui/popover";
+import { Switch } from "~/components/ui/switch";
+import { Input } from "~/components/ui/input";
 import { HyperliquidService } from "~/lib/hyperliquid";
 import { useBalanceUpdater } from "~/hooks/useBalanceUpdater";
 import { useLivePrice } from "~/hooks/useLivePrice";
@@ -26,6 +28,13 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   const [isLong, setIsLong] = React.useState(true);
   const [selectedCoin, setSelectedCoin] = React.useState<string>("");
   const [openCombobox, setOpenCombobox] = React.useState(false);
+  const [isAutoMode, setIsAutoMode] = React.useState(true);
+  
+  // Manual mode states
+  const [manualEntry, setManualEntry] = React.useState("");
+  const [manualPositionSize, setManualPositionSize] = React.useState("");
+  const [manualTP, setManualTP] = React.useState("");
+  const [manualSL, setManualSL] = React.useState("");
   
   const currentPerpsValue = balance?.perpsValue || 0;
   
@@ -41,8 +50,8 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   // Get live price for the selected coin
   const { price: livePrice, isConnected, error: priceError } = useLivePrice(coin);
   
-  // Parse live price
-  const entryPrice = parseFloat(livePrice) || 0;
+  // Parse entry price based on mode
+  const entryPrice = isAutoMode ? (parseFloat(livePrice) || 0) : (parseFloat(manualEntry) || 0);
   
   // Dynamic precision based on entry price
   const pricePrecision = entryPrice >= 1 ? 1 : 3;
@@ -55,18 +64,28 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
     ? (maxLeverage * dailyTarget.fixedLeverageRatio / 100)
     : maxLeverage * 0.1; // Default to 10% if not set
   
-  // Calculate fixed position size based on leverage
+  // Calculate position size based on mode
   let positionSize = 0;
   let positionSizeInCoins = 0;
   let positionSizeInUSD = 0;
   
-  if (startOfDayPerpsValue > 0) {
-    // Fixed position size in USD = account value * effective leverage
-    positionSizeInUSD = startOfDayPerpsValue * effectiveLeverage;
-    
-    if (entryPrice > 0) {
+  if (isAutoMode) {
+    // Auto mode: Calculate based on leverage
+    if (startOfDayPerpsValue > 0) {
+      // Fixed position size in USD = account value * effective leverage
+      positionSizeInUSD = startOfDayPerpsValue * effectiveLeverage;
+      
+      if (entryPrice > 0) {
+        positionSize = positionSizeInUSD;
+        positionSizeInCoins = positionSize / entryPrice;
+      }
+    }
+  } else {
+    // Manual mode: Use user input
+    positionSizeInCoins = parseFloat(manualPositionSize) || 0;
+    if (entryPrice > 0 && positionSizeInCoins > 0) {
+      positionSizeInUSD = positionSizeInCoins * entryPrice;
       positionSize = positionSizeInUSD;
-      positionSizeInCoins = positionSize / entryPrice;
     }
   }
   
@@ -86,45 +105,85 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   let slPrice = 0;
   let slPercentageFromEntry = 0;
   
-  if (entryPrice > 0 && positionSize > 0) {
-    // Max loss includes fees
-    const maxLossWithoutFees = maxLossAmount - feeCost;
-    slPercentageFromEntry = (maxLossWithoutFees / positionSize) * 100;
-    
-    if (isLong) {
-      slPrice = entryPrice * (1 - slPercentageFromEntry / 100);
-    } else {
-      slPrice = entryPrice * (1 + slPercentageFromEntry / 100);
+  if (isAutoMode) {
+    // Auto mode: Calculate based on fixed SL percentage
+    if (entryPrice > 0 && positionSize > 0) {
+      // Max loss includes fees
+      const maxLossWithoutFees = maxLossAmount - feeCost;
+      slPercentageFromEntry = (maxLossWithoutFees / positionSize) * 100;
+      
+      if (isLong) {
+        slPrice = entryPrice * (1 - slPercentageFromEntry / 100);
+      } else {
+        slPrice = entryPrice * (1 + slPercentageFromEntry / 100);
+      }
+    }
+  } else {
+    // Manual mode: Use user input
+    slPrice = parseFloat(manualSL) || 0;
+    if (entryPrice > 0 && slPrice > 0) {
+      slPercentageFromEntry = isLong 
+        ? ((entryPrice - slPrice) / entryPrice) * 100
+        : ((slPrice - entryPrice) / entryPrice) * 100;
     }
   }
   
-  // Calculate TP to achieve target profit per trade
+  // Calculate TP
   let tpPrice = 0;
   let tpPercentageFromEntry = 0;
   
-  if (entryPrice > 0 && positionSize > 0) {
-    // Target profit includes fees
-    const requiredGrossProfit = targetProfitPerTrade + feeCost;
-    tpPercentageFromEntry = (requiredGrossProfit / positionSize) * 100;
-    
-    if (isLong) {
-      tpPrice = entryPrice * (1 + tpPercentageFromEntry / 100);
-    } else {
-      tpPrice = entryPrice * (1 - tpPercentageFromEntry / 100);
+  if (isAutoMode) {
+    // Auto mode: Calculate to achieve target profit per trade
+    if (entryPrice > 0 && positionSize > 0) {
+      // Target profit includes fees
+      const requiredGrossProfit = targetProfitPerTrade + feeCost;
+      tpPercentageFromEntry = (requiredGrossProfit / positionSize) * 100;
+      
+      if (isLong) {
+        tpPrice = entryPrice * (1 + tpPercentageFromEntry / 100);
+      } else {
+        tpPrice = entryPrice * (1 - tpPercentageFromEntry / 100);
+      }
+    }
+  } else {
+    // Manual mode: Use user input
+    tpPrice = parseFloat(manualTP) || 0;
+    if (entryPrice > 0 && tpPrice > 0) {
+      tpPercentageFromEntry = isLong
+        ? ((tpPrice - entryPrice) / entryPrice) * 100
+        : ((entryPrice - tpPrice) / entryPrice) * 100;
     }
   }
   
   // Calculate actual risk and reward
   const riskPercentage = Math.abs(slPercentageFromEntry);
   const rewardPercentage = Math.abs(tpPercentageFromEntry);
-  const riskDollar = maxLossAmount;
-  const rewardDollar = targetProfitPerTrade;
+  
+  let riskDollar = 0;
+  let rewardDollar = 0;
+  
+  if (isAutoMode) {
+    // Auto mode: Use calculated values
+    riskDollar = maxLossAmount;
+    rewardDollar = targetProfitPerTrade;
+  } else {
+    // Manual mode: Calculate based on manual inputs
+    if (positionSize > 0) {
+      riskDollar = (positionSize * riskPercentage / 100) + feeCost;
+      rewardDollar = (positionSize * rewardPercentage / 100) - feeCost;
+    }
+  }
   
   // Calculate R:R ratio (dynamic based on fixed SL and target)
   const rrRatio = riskDollar > 0 ? rewardDollar / riskDollar : 0;
   
-  // Calculate margin required (using max leverage, not effective leverage)
+  // Calculate margin required and actual leverage used
   const marginRequired = positionSize / maxLeverage;
+  
+  // In manual mode, calculate the actual leverage based on position size
+  const actualLeverage = isAutoMode 
+    ? effectiveLeverage 
+    : (currentPerpsValue > 0 ? positionSizeInUSD / currentPerpsValue : 0);
   
   // Calculate SL BE (Breakeven) price including fees
   const feePercentagePerSide = advancedSettings.takerFee / 100;
@@ -174,7 +233,8 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
     
     const emoji = isLong ? "🟢" : "🔴";
     const direction = isLong ? "Long" : "Short";
-    const tradeText = `${emoji} ${direction} ${coin} entry ${livePrice}, SL ${slPrice.toFixed(pricePrecision)}, TP ${tpPrice.toFixed(pricePrecision)}`;
+    const entryText = entryPrice.toFixed(pricePrecision);
+    const tradeText = `${emoji} ${direction} ${coin} entry ${entryText}, SL ${slPrice.toFixed(pricePrecision)}, TP ${tpPrice.toFixed(pricePrecision)}`;
     
     navigator.clipboard.writeText(tradeText);
     toast.success("Trade copied to clipboard!", {
@@ -182,20 +242,38 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
     });
   };
   
-  const isValid = entryPrice > 0 && startOfDayPerpsValue > 0;
+  const isValid = isAutoMode 
+    ? (entryPrice > 0 && startOfDayPerpsValue > 0)
+    : (entryPrice > 0 && positionSizeInCoins > 0 && slPrice > 0 && tpPrice > 0);
 
   return (
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Calculator className="w-5 h-5" />
-          Trade Calculator - Fixed Position & Dynamic R:R
+          Trade Calculator - {isAutoMode ? "Automatic" : "Manual"} Mode
         </CardTitle>
         <CardDescription>
-          Auto-calculates TP for daily target and SL for {fixedSLPercentage}% account risk
+          {isAutoMode 
+            ? `Auto-calculates TP for daily target and SL for ${fixedSLPercentage}% account risk`
+            : "Manually set position size, TP, SL for swing trades"}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Mode Switch */}
+        <div className="flex items-center justify-between p-3 bg-muted rounded-lg">
+          <div>
+            <p className="text-sm font-medium">Mode</p>
+            <p className="text-xs text-muted-foreground">
+              {isAutoMode ? "Automatic for daily scalping" : "Manual for swing trades"}
+            </p>
+          </div>
+          <Switch
+            checked={isAutoMode}
+            onCheckedChange={setIsAutoMode}
+          />
+        </div>
+        
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-2">
             <Button
@@ -263,36 +341,90 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
         <div className="p-3 bg-muted rounded-lg">
           <label className="text-xs text-muted-foreground flex items-center justify-between mb-1">
             <span>Entry Price</span>
-            {isConnected && (
+            {isAutoMode && isConnected && (
               <span className="text-green-600 flex items-center gap-1">
                 <span className="w-2 h-2 bg-green-600 rounded-full animate-pulse"></span>
                 Live
               </span>
             )}
-            {priceError && (
+            {isAutoMode && priceError && (
               <span className="text-red-600 text-xs">Price feed error</span>
             )}
           </label>
-          {livePrice ? (
-            <div className="flex items-center justify-between">
-              <p className="font-mono font-semibold text-lg">{livePrice}</p>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-6 text-xs"
-                onClick={() => handleCopyPrice(entryPrice, "Entry price")}
-              >
-                <Copy className="w-3 h-3 mr-1" />
-                Copy
-              </Button>
-            </div>
+          {isAutoMode ? (
+            livePrice ? (
+              <div className="flex items-center justify-between">
+                <p className="font-mono font-semibold text-lg">{livePrice}</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 text-xs"
+                  onClick={() => handleCopyPrice(entryPrice, "Entry price")}
+                >
+                  <Copy className="w-3 h-3 mr-1" />
+                  Copy
+                </Button>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Waiting for price feed...</p>
+            )
           ) : (
-            <p className="text-sm text-muted-foreground">Waiting for price feed...</p>
+            <Input
+              type="number"
+              value={manualEntry}
+              onChange={(e) => setManualEntry(e.target.value)}
+              placeholder={`Enter ${coin} price`}
+              className="font-mono"
+              step="any"
+            />
           )}
         </div>
         
+        {/* Manual Mode Input Fields */}
+        {!isAutoMode && (
+          <div className="space-y-3">
+            <div className="p-3 bg-muted rounded-lg">
+              <label className="text-xs text-muted-foreground mb-1 block">Position Size ({coin})</label>
+              <Input
+                type="number"
+                value={manualPositionSize}
+                onChange={(e) => setManualPositionSize(e.target.value)}
+                placeholder={`Enter ${coin} amount`}
+                className="font-mono"
+                step="any"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2">
+              <div className="p-3 bg-muted rounded-lg">
+                <label className="text-xs text-muted-foreground mb-1 block">Stop Loss Price</label>
+                <Input
+                  type="number"
+                  value={manualSL}
+                  onChange={(e) => setManualSL(e.target.value)}
+                  placeholder="SL price"
+                  className="font-mono text-red-600"
+                  step="any"
+                />
+              </div>
+              
+              <div className="p-3 bg-muted rounded-lg">
+                <label className="text-xs text-muted-foreground mb-1 block">Take Profit Price</label>
+                <Input
+                  type="number"
+                  value={manualTP}
+                  onChange={(e) => setManualTP(e.target.value)}
+                  placeholder="TP price"
+                  className="font-mono text-green-600"
+                  step="any"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+        
         {/* Show position size even without entry price */}
-        {startOfDayPerpsValue > 0 && !entryPrice && (
+        {isAutoMode && startOfDayPerpsValue > 0 && !entryPrice && (
           <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
             <p className="text-xs font-medium mb-2">Fixed Position Size</p>
             <div className="grid grid-cols-2 gap-2 text-xs">
@@ -368,7 +500,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
             </div>
             
             <div className="p-3 bg-primary/10 rounded-lg border border-primary/20">
-              <p className="text-xs font-medium mb-2">Fixed Position Sizing</p>
+              <p className="text-xs font-medium mb-2">{isAutoMode ? "Fixed Position Sizing" : "Position Summary"}</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
                   <p className="text-muted-foreground">Position size:</p>
@@ -386,15 +518,17 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
                 </div>
                 <div>
                   <p className="text-muted-foreground">Leverage:</p>
-                  <p className="font-semibold">{effectiveLeverage.toFixed(1)}x</p>
-                  <p className="text-xs text-muted-foreground">({dailyTarget.fixedLeverageRatio || 10}% of {maxLeverage}x)</p>
+                  <p className="font-semibold">{actualLeverage.toFixed(1)}x</p>
+                  {isAutoMode && (
+                    <p className="text-xs text-muted-foreground">({dailyTarget.fixedLeverageRatio || 10}% of {maxLeverage}x)</p>
+                  )}
                 </div>
                 <div>
                   <p className="text-muted-foreground">Margin required:</p>
                   <p className="font-semibold">{hlService.formatUsdValue(marginRequired)}</p>
                 </div>
                 <div>
-                  <p className="text-muted-foreground">Dynamic R:R:</p>
+                  <p className="text-muted-foreground">R:R Ratio:</p>
                   <p className="font-semibold">1:{rrRatio.toFixed(2)}</p>
                   <p className="text-xs text-muted-foreground">After fees</p>
                 </div>
@@ -403,7 +537,9 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
             
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <p className="text-xs text-muted-foreground">Fixed Risk ({fixedSLPercentage}% of Account)</p>
+                <p className="text-xs text-muted-foreground">
+                  {isAutoMode ? `Fixed Risk (${fixedSLPercentage}% of Account)` : "Risk"}
+                </p>
                 <p className="text-sm font-bold text-red-600">
                   -{riskPercentage.toFixed(2)}% move
                 </p>
@@ -415,7 +551,9 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
                 </p>
               </div>
               <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                <p className="text-xs text-muted-foreground">Target Profit (Per Trade)</p>
+                <p className="text-xs text-muted-foreground">
+                  {isAutoMode ? "Target Profit (Per Trade)" : "Profit"}
+                </p>
                 <p className="text-sm font-bold text-green-600">
                   +{rewardPercentage.toFixed(2)}% move
                 </p>
@@ -446,13 +584,13 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
               <p className="text-xs font-medium mb-1">Trade Setup Summary</p>
               <ul className="text-xs space-y-0.5 text-muted-foreground">
-                <li>• {coin} {isLong ? "Long" : "Short"} @ {livePrice}</li>
-                <li>• Position: <span className="font-semibold text-foreground">{positionSizeInCoins.toFixed(4)} {coin}</span> ({hlService.formatUsdValue(positionSize)}, {effectiveLeverage.toFixed(1)}x leverage)</li>
-                <li>• Target: <span className="font-semibold text-green-600">{tpPrice.toFixed(pricePrecision)}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(targetProfitPerTrade)} net)</li>
+                <li>• {coin} {isLong ? "Long" : "Short"} @ {entryPrice.toFixed(pricePrecision)}</li>
+                <li>• Position: <span className="font-semibold text-foreground">{positionSizeInCoins.toFixed(4)} {coin}</span> ({hlService.formatUsdValue(positionSize)}, {actualLeverage.toFixed(1)}x leverage)</li>
+                <li>• Target: <span className="font-semibold text-green-600">{tpPrice.toFixed(pricePrecision)}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(rewardDollar)} net)</li>
                 <li>• Stop: <span className="font-semibold text-red-600">{slPrice.toFixed(pricePrecision)}</span> (-{riskPercentage.toFixed(2)}%, {hlService.formatUsdValue(riskDollar)} total loss)</li>
                 <li>• SL BE: <span className="font-semibold">{slBePrice.toFixed(pricePrecision)}</span> ({beMovementPercentage.toFixed(3)}% move to breakeven)</li>
                 <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> ({hlService.formatUsdValue(feeCost)})</li>
-                <li>• Dynamic R:R: <span className="font-semibold">1:{rrRatio.toFixed(2)}</span> (fixed {fixedSLPercentage}% risk, {(dailyTarget.targetPercentage / dailyTarget.minimumTrades).toFixed(1)}% target)</li>
+                <li>• R:R Ratio: <span className="font-semibold">1:{rrRatio.toFixed(2)}</span> {isAutoMode && `(fixed ${fixedSLPercentage}% risk, ${(dailyTarget.targetPercentage / dailyTarget.minimumTrades).toFixed(1)}% target)`}</li>
               </ul>
             </div>
             
