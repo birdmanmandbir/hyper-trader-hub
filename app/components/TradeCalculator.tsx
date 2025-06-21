@@ -317,7 +317,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
                           key={crypto}
                           value={crypto}
                           onSelect={(currentValue) => {
-                            setSelectedCoin(currentValue.toUpperCase());
+                            setSelectedCoin(crypto);
                             setOpenCombobox(false);
                           }}
                         >

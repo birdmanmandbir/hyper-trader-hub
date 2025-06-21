@@ -78,7 +78,7 @@ export default function AdvancedSettings() {
         ...tempSettings,
         leverageMap: {
           ...tempSettings.leverageMap,
-          [newCrypto.toUpperCase()]: parseInt(newLeverage)
+          [newCrypto]: parseFloat(newLeverage)
         }
       });
       setNewCrypto('');
@@ -99,7 +99,7 @@ export default function AdvancedSettings() {
       ...tempSettings,
       leverageMap: {
         ...tempSettings.leverageMap,
-        [crypto]: parseInt(leverage) || 1
+        [crypto]: parseFloat(leverage) || 1
       }
     });
   };
@@ -194,11 +194,11 @@ export default function AdvancedSettings() {
                 <Input
                   type="number"
                   value={tempSettings.defaultLeverage}
-                  onChange={(e) => setTempSettings({ ...tempSettings, defaultLeverage: parseInt(e.target.value) || 10 })}
+                  onChange={(e) => setTempSettings({ ...tempSettings, defaultLeverage: parseFloat(e.target.value) || 10 })}
                   placeholder="10"
-                  min="1"
+                  min="0.1"
                   max="100"
-                  step="1"
+                  step="0.1"
                 />
                 <p className="text-sm text-muted-foreground mt-1">
                   Default leverage for cryptos not specifically configured
@@ -220,9 +220,9 @@ export default function AdvancedSettings() {
                         value={leverage}
                         onChange={(e) => updateCryptoLeverage(crypto, e.target.value)}
                         className="w-24"
-                        min="1"
+                        min="0.1"
                         max="100"
-                        step="1"
+                        step="0.1"
                       />
                       <span className="text-sm text-muted-foreground">x</span>
                       <Button
@@ -241,7 +241,7 @@ export default function AdvancedSettings() {
                   <Input
                     type="text"
                     value={newCrypto}
-                    onChange={(e) => setNewCrypto(e.target.value.toUpperCase())}
+                    onChange={(e) => setNewCrypto(e.target.value)}
                     placeholder="Symbol (e.g., SOL)"
                     className="flex-1"
                   />
@@ -251,9 +251,9 @@ export default function AdvancedSettings() {
                     onChange={(e) => setNewLeverage(e.target.value)}
                     placeholder="Leverage"
                     className="w-32"
-                    min="1"
+                    min="0.1"
                     max="100"
-                    step="1"
+                    step="0.1"
                   />
                   <Button
                     type="button"
