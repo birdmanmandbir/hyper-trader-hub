@@ -1,4 +1,5 @@
 import type { AdvancedSettings, DailyTarget } from "./types";
+import { getDefaultLeverage } from "./crypto-config";
 
 // Default values for Advanced Settings
 export const DEFAULT_ADVANCED_SETTINGS: AdvancedSettings = {
@@ -8,7 +9,12 @@ export const DEFAULT_ADVANCED_SETTINGS: AdvancedSettings = {
   lossThreshold: 30,
   preferredTradingTimes: [],
   avoidedTradingTimes: [],
-  leverageMap: { "ETH": 25, "BTC": 40, "ADA": 10 },
+  leverageMap: { 
+    "ETH": getDefaultLeverage("ETH"), 
+    "BTC": getDefaultLeverage("BTC"), 
+    "SOL": getDefaultLeverage("SOL"),
+    "kPEPE": getDefaultLeverage("kPEPE")
+  },
   defaultLeverage: 10,
   defaultLongCrypto: "ETH",
   defaultShortCrypto: "BTC",
@@ -36,37 +42,6 @@ export const STORAGE_KEYS = {
 } as const;
 
 // Popular cryptocurrencies for trading
-export const CRYPTO_LIST = [
-  "BTC",
-  "ETH",
-  "SOL",
-  "ARB",
-  "MATIC",
-  "AVAX",
-  "BNB",
-  "DOGE",
-  "ADA",
-  "DOT",
-  "LINK",
-  "UNI",
-  "XRP",
-  "LTC",
-  "ATOM",
-  "NEAR",
-  "OP",
-  "FTM",
-  "APT",
-  "SEI",
-  "SUI",
-  "INJ",
-  "TIA",
-  "BLUR",
-  "WLD",
-  "ORDI",
-  "PEPE",
-  "SHIB",
-  "FLOKI",
-  "BONK",
-  "HYPE",
-  "kPEPE",
-] as const;
+import { getCryptoList } from "./crypto-config";
+
+export const CRYPTO_LIST = getCryptoList();

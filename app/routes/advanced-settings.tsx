@@ -4,6 +4,7 @@ import { Trash2, Plus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
+import { CryptoCombobox } from "~/components/CryptoCombobox";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import type { AdvancedSettings, TimePeriod } from "~/lib/types";
 import { DEFAULT_ADVANCED_SETTINGS, STORAGE_KEYS } from "~/lib/constants";
@@ -238,11 +239,9 @@ export default function AdvancedSettings() {
                 </div>
 
                 <div className="flex gap-2">
-                  <Input
-                    type="text"
+                  <CryptoCombobox
                     value={newCrypto}
-                    onChange={(e) => setNewCrypto(e.target.value)}
-                    placeholder="Symbol (e.g., SOL)"
+                    onValueChange={setNewCrypto}
                     className="flex-1"
                   />
                   <Input
