@@ -50,7 +50,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   const entryPrice = isAutoMode ? (parseFloat(livePrice) || 0) : (parseFloat(manualEntry) || 0);
   
   // Dynamic precision based on entry price
-  const pricePrecision = entryPrice >= 1 ? 1 : 3;
+  const pricePrecision = entryPrice >= 1 ? 1 : 5;
   
   // Get leverage for the specific crypto or use default
   const maxLeverage = advancedSettings.leverageMap[coin] || advancedSettings.defaultLeverage || 10;

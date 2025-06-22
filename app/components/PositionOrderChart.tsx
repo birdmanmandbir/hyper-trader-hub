@@ -69,7 +69,7 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
   
   // Format price based on value
   const formatPrice = (price: number) => {
-    return price >= 1 ? price.toFixed(1) : price.toFixed(3);
+    return price >= 1 ? price.toFixed(1) : price.toFixed(5);
   };
   
   // Format dollar value

@@ -36,7 +36,7 @@ export function useLivePrice(coin: string) {
             const priceNum = parseFloat(midPrice);
             const formattedPrice = priceNum >= 1 
               ? priceNum.toFixed(1) 
-              : priceNum.toFixed(3);
+              : priceNum.toFixed(5);
             setPrice(formattedPrice);
           }
         });
