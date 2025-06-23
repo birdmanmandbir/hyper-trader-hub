@@ -193,6 +193,103 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
+              {/* Calculate total expected profit/loss */}
+              {(() => {
+                let totalExpectedProfit = 0;
+                let totalExpectedLoss = 0;
+                let hasTPOrders = false;
+                let hasSLOrders = false;
+
+                balances.perpetualPositions.forEach(position => {
+                  const isLong = parseFloat(position.szi) > 0;
+                  const entry = parseFloat(position.entryPx);
+                  const sizeNum = Math.abs(parseFloat(position.szi));
+                  const positionValue = entry * sizeNum;
+                  
+                  if (balances.orders) {
+                    const positionOrders = balances.orders.filter(order => order.coin === position.coin);
+                    
+                    // Calculate TP profit
+                    const tpOrders = positionOrders.filter(order => 
+                      order.orderType === "Limit" && order.reduceOnly === true
+                    );
+                    
+                    if (tpOrders.length > 0) {
+                      hasTPOrders = true;
+                      tpOrders.forEach(tpOrder => {
+                        const tpPrice = parseFloat(tpOrder.limitPx);
+                        const tpSize = parseFloat(tpOrder.sz);
+                        const tpProfitPerCoin = isLong ? (tpPrice - entry) : (entry - tpPrice);
+                        const tpProfit = tpProfitPerCoin * tpSize;
+                        
+                        // Calculate fees
+                        const entryFeeProportional = (positionValue * (advancedSettings.takerFee / 100)) * (tpSize / sizeNum);
+                        const tpExitFee = (tpPrice * tpSize) * (advancedSettings.makerFee / 100);
+                        
+                        totalExpectedProfit += tpProfit - entryFeeProportional - tpExitFee;
+                      });
+                    }
+                    
+                    // Calculate SL loss (if any)
+                    const slOrders = positionOrders.filter(order => 
+                      order.orderType === "Stop Market"
+                    );
+                    
+                    if (slOrders.length > 0) {
+                      hasSLOrders = true;
+                      const firstSL = slOrders[0];
+                      const slPrice = firstSL.triggerPx ? parseFloat(firstSL.triggerPx) : parseFloat(firstSL.limitPx);
+                      const slLossPerCoin = isLong ? (entry - slPrice) : (slPrice - entry);
+                      const slLossBeforeFees = slLossPerCoin * sizeNum;
+                      
+                      // Calculate fees
+                      const entryFee = positionValue * (advancedSettings.takerFee / 100);
+                      const slExitFee = (slPrice * sizeNum) * (advancedSettings.takerFee / 100);
+                      
+                      const totalSlLoss = slLossBeforeFees < 0 
+                        ? slLossBeforeFees - entryFee - slExitFee  // Profit scenario
+                        : slLossBeforeFees + entryFee + slExitFee; // Loss scenario
+                      
+                      if (totalSlLoss > 0) {
+                        totalExpectedLoss += totalSlLoss;
+                      } else {
+                        // SL is in profit, add to expected profit
+                        totalExpectedProfit += Math.abs(totalSlLoss);
+                      }
+                    }
+                  }
+                });
+
+                if (hasTPOrders || hasSLOrders) {
+                  return (
+                    <div className="mb-4 p-3 bg-muted rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm font-medium">Total Expected P&L</span>
+                        <div className="flex items-center gap-4">
+                          {totalExpectedProfit > 0 && (
+                            <div className="text-sm">
+                              <span className="text-muted-foreground">Profit: </span>
+                              <span className="font-semibold text-green-600">
+                                +{hlService.formatUsdValue(totalExpectedProfit)}
+                              </span>
+                            </div>
+                          )}
+                          {totalExpectedLoss > 0 && (
+                            <div className="text-sm">
+                              <span className="text-muted-foreground">Risk: </span>
+                              <span className="font-semibold text-red-600">
+                                -{hlService.formatUsdValue(totalExpectedLoss)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+              
               {balances.perpetualPositions.map((position, index) => (
                 <div key={index} className="p-3 bg-muted rounded-lg">
                   <div className="flex justify-between items-start mb-2">

@@ -241,29 +241,41 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
               // Find first SL order
               const firstSL = slOrders[0];
               
-              if (!firstSL || tpOrders.length === 0) {
+              // Check if we have TP orders
+              if (tpOrders.length === 0) {
                 return (
                   <p className="text-sm text-muted-foreground">
-                    Complete setup analysis requires both SL and TP orders
+                    No take profit orders set
                   </p>
                 );
               }
               
-              const slPrice = firstSL.triggerPx ? parseFloat(firstSL.triggerPx) : parseFloat(firstSL.limitPx);
+              // Handle cases with and without SL
+              let slPrice = 0;
+              let slPriceMove = 0;
+              let slLossPerCoin = 0;
+              let slLossBeforeFees = 0;
+              let slExitFee = 0;
+              let totalSlLoss = 0;
+              let slPercentMove = 0;
               
-              // Calculate SL risk (can be negative if SL is in profit)
-              const slPriceMove = Math.abs(slPrice - entry);
-              const slLossPerCoin = isLong ? (entry - slPrice) : (slPrice - entry);
-              const slLossBeforeFees = slLossPerCoin * sizeNum;
-              const slExitFee = (slPrice * sizeNum) * (takerFee / 100); // Stop market uses taker fee
-              
-              // If slLossBeforeFees is negative, it means we're in profit (SL above entry for long, below for short)
-              // In this case, we should subtract fees from the profit, not add them to a loss
-              const totalSlLoss = slLossBeforeFees < 0 
-                ? slLossBeforeFees - entryFee - slExitFee  // Profit scenario: subtract fees from profit
-                : slLossBeforeFees + entryFee + slExitFee; // Loss scenario: add fees to loss
-              
-              const slPercentMove = (slPriceMove / entry) * 100;
+              if (firstSL) {
+                slPrice = firstSL.triggerPx ? parseFloat(firstSL.triggerPx) : parseFloat(firstSL.limitPx);
+                
+                // Calculate SL risk (can be negative if SL is in profit)
+                slPriceMove = Math.abs(slPrice - entry);
+                slLossPerCoin = isLong ? (entry - slPrice) : (slPrice - entry);
+                slLossBeforeFees = slLossPerCoin * sizeNum;
+                slExitFee = (slPrice * sizeNum) * (takerFee / 100); // Stop market uses taker fee
+                
+                // If slLossBeforeFees is negative, it means we're in profit (SL above entry for long, below for short)
+                // In this case, we should subtract fees from the profit, not add them to a loss
+                totalSlLoss = slLossBeforeFees < 0 
+                  ? slLossBeforeFees - entryFee - slExitFee  // Profit scenario: subtract fees from profit
+                  : slLossBeforeFees + entryFee + slExitFee; // Loss scenario: add fees to loss
+                
+                slPercentMove = (slPriceMove / entry) * 100;
+              }
               
               // Calculate total TP reward (sum of all TP orders)
               let totalTpProfitBeforeFees = 0;
@@ -301,34 +313,36 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
               
               return (
                 <div className="space-y-3">
-                  {/* Risk Analysis */}
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase">
-                      {totalSlLoss < 0 ? "Profit Protection (Stop Loss)" : "Risk (Stop Loss)"}
-                    </h4>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <p className="text-muted-foreground">Price Move:</p>
-                        <p className={`font-semibold ${totalSlLoss < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {totalSlLoss < 0 ? '+' : '-'}{slPercentMove.toFixed(2)}%
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">{totalSlLoss < 0 ? "Min Profit:" : "Total Loss:"}</p>
-                        <p className={`font-semibold ${totalSlLoss < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {totalSlLoss < 0 ? '+' : '-'}{formatUsd(Math.abs(totalSlLoss))}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Entry Fee:</p>
-                        <p className="text-xs">{formatUsd(entryFee)} ({takerFee}%)</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Exit Fee:</p>
-                        <p className="text-xs">{formatUsd(slExitFee)} ({takerFee}%)</p>
+                  {/* Risk Analysis - Only show if SL exists */}
+                  {firstSL && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase">
+                        {totalSlLoss < 0 ? "Profit Protection (Stop Loss)" : "Risk (Stop Loss)"}
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">Price Move:</p>
+                          <p className={`font-semibold ${totalSlLoss < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {totalSlLoss < 0 ? '+' : '-'}{slPercentMove.toFixed(2)}%
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">{totalSlLoss < 0 ? "Min Profit:" : "Total Loss:"}</p>
+                          <p className={`font-semibold ${totalSlLoss < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {totalSlLoss < 0 ? '+' : '-'}{formatUsd(Math.abs(totalSlLoss))}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Entry Fee:</p>
+                          <p className="text-xs">{formatUsd(entryFee)} ({takerFee}%)</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Exit Fee:</p>
+                          <p className="text-xs">{formatUsd(slExitFee)} ({takerFee}%)</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                   
                   {/* Reward Analysis */}
                   <div className="space-y-2">
@@ -365,20 +379,22 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
                     <div className="grid grid-cols-3 gap-2 text-xs">
                       <div className="text-center">
                         <p className="text-muted-foreground">
-                          {totalSlLoss < 0 ? "Profit Multiple" : "Risk:Reward"}
+                          {!firstSL ? "Expected Profit" : totalSlLoss < 0 ? "Profit Multiple" : "Risk:Reward"}
                         </p>
                         <p className="font-bold text-lg">
-                          {totalSlLoss < 0 
-                            ? totalTpProfit > Math.abs(totalSlLoss) 
-                              ? `${(totalTpProfit / Math.abs(totalSlLoss)).toFixed(2)}x`
-                              : "Protected"
-                            : `1:${rrRatio.toFixed(2)}`
+                          {!firstSL 
+                            ? formatUsd(totalTpProfit)
+                            : totalSlLoss < 0 
+                              ? totalTpProfit > Math.abs(totalSlLoss) 
+                                ? `${(totalTpProfit / Math.abs(totalSlLoss)).toFixed(2)}x`
+                                : "Protected"
+                              : `1:${rrRatio.toFixed(2)}`
                           }
                         </p>
                       </div>
                       <div className="text-center">
                         <p className="text-muted-foreground">Max Fees</p>
-                        <p className="font-semibold">{formatUsd(entryFee + slExitFee)}</p>
+                        <p className="font-semibold">{formatUsd(entryFee + (firstSL ? slExitFee : totalTpExitFees))}</p>
                       </div>
                       <div className="text-center">
                         <p className="text-muted-foreground">Breakeven</p>
@@ -396,6 +412,12 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
                   {totalSlLoss < 0 && (
                     <div className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 p-2 rounded">
                       ✅ Stop loss is in profit! You have locked in a minimum profit of {formatUsd(Math.abs(totalSlLoss))} after fees.
+                    </div>
+                  )}
+                  
+                  {!firstSL && (
+                    <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
+                      ⚠️ No stop loss set. Position is exposed to unlimited downside risk.
                     </div>
                   )}
                 </div>
