@@ -186,10 +186,37 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
       {balances.perpetualPositions.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Perpetual Positions</CardTitle>
-            <CardDescription>
-              Your open perpetual positions
-            </CardDescription>
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle>Perpetual Positions</CardTitle>
+                <CardDescription>
+                  Your open perpetual positions
+                </CardDescription>
+              </div>
+              {/* Total P&L Summary */}
+              <div className="text-right">
+                {(() => {
+                  const totalPnL = balances.perpetualPositions.reduce((sum, pos) => 
+                    sum + parseFloat(pos.unrealizedPnl || "0"), 0
+                  );
+                  const totalNotional = balances.perpetualPositions.reduce((sum, pos) => 
+                    sum + Math.abs(parseFloat(pos.szi) * parseFloat(pos.entryPx)), 0
+                  );
+                  
+                  return (
+                    <>
+                      <p className="text-sm text-muted-foreground">Total P&L</p>
+                      <p className={`text-xl font-bold ${totalPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                        {hlService.formatUsdValue(totalPnL)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        on {hlService.formatUsdValue(totalNotional)} notional
+                      </p>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="space-y-3">

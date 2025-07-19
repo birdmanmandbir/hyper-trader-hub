@@ -17,6 +17,30 @@ export default function Home() {
   const [walletAddress, setWalletAddress] = useLocalStorage<string | null>("hyperliquid-wallet", null);
   const [error, setError] = useState<string | null>(null);
   const { balance, nextUpdateIn, isUpdating, updateNow } = useBalanceUpdater(walletAddress);
+  const hlService = new HyperliquidService();
+
+  // Update document title when balance changes
+  useEffect(() => {
+    if (balance?.rawData?.perpetualPositions && balance.rawData.perpetualPositions.length > 0) {
+      // Calculate total P&L and notional
+      const totalPnL = balance.rawData.perpetualPositions.reduce((sum, pos) => 
+        sum + parseFloat(pos.unrealizedPnl || "0"), 0
+      );
+      
+      const totalNotional = balance.rawData.perpetualPositions.reduce((sum, pos) => 
+        sum + Math.abs(parseFloat(pos.szi) * parseFloat(pos.entryPx)), 0
+      );
+      
+      // Format title with P&L and position size
+      const pnlSign = totalPnL >= 0 ? '+' : '';
+      const pnlFormatted = hlService.formatUsdValue(totalPnL).replace('$', '');
+      const notionalFormatted = hlService.formatUsdValue(totalNotional).replace('$', '');
+      
+      document.title = `${pnlSign}$${pnlFormatted} | $${notionalFormatted} - HTH`;
+    } else {
+      document.title = "Hyper Trader Hub";
+    }
+  }, [balance]);
 
   const handleWalletSubmit = async (address: string) => {
     setWalletAddress(address);
