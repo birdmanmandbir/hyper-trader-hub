@@ -8,15 +8,29 @@ import {
   uniqueIndex 
 } from "drizzle-orm/sqlite-core";
 
-// Current balance cache - replaces KV storage
-export const currentBalances = sqliteTable("current_balances", {
-  userAddress: text("user_address").primaryKey(),
-  balanceData: text("balance_data").notNull(), // JSON of full balance info
-  accountValue: real("account_value").notNull(),
-  perpsValue: real("perps_value").notNull(),
-  spotValue: real("spot_value").notNull().default(0),
-  stakingValue: real("staking_value").notNull().default(0),
-  updatedAt: integer("updated_at").notNull(),
+// User sessions for authentication
+export const userSessions = sqliteTable("user_sessions", {
+  id: text("id").primaryKey(),
+  userAddress: text("user_address").notNull(),
+  createdAt: integer("created_at").default(sql`(unixepoch())`),
+  expiresAt: integer("expires_at").notNull(),
+}, (table) => {
+  return {
+    userAddressIdx: index("idx_user_address").on(table.userAddress),
+    expiresIdx: index("idx_expires").on(table.expiresAt),
+  };
+});
+
+// User checklists for trading criteria
+export const userChecklists = sqliteTable("user_checklists", {
+  userAddress: text("user_address").notNull(),
+  checklistType: text("checklist_type").notNull(), // 'entry' or 'exit'
+  items: text("items").notNull(), // JSON array
+  updatedAt: integer("updated_at").default(sql`(unixepoch())`),
+}, (table) => {
+  return {
+    pk: uniqueIndex("pk_user_checklist").on(table.userAddress, table.checklistType),
+  };
 });
 
 export const userSettings = sqliteTable("user_settings", {
@@ -132,8 +146,10 @@ export const cronLogs = sqliteTable("cron_logs", {
 });
 
 // Type exports
-export type CurrentBalance = typeof currentBalances.$inferSelect;
-export type NewCurrentBalance = typeof currentBalances.$inferInsert;
+export type UserSession = typeof userSessions.$inferSelect;
+export type NewUserSession = typeof userSessions.$inferInsert;
+export type UserChecklist = typeof userChecklists.$inferSelect;
+export type NewUserChecklist = typeof userChecklists.$inferInsert;
 export type UserSettings = typeof userSettings.$inferSelect;
 export type NewUserSettings = typeof userSettings.$inferInsert;
 export type DailyBalance = typeof dailyBalances.$inferSelect;

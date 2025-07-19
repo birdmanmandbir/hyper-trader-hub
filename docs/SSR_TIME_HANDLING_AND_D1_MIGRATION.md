@@ -29,11 +29,12 @@ This document outlines the strategy for handling time-based operations in a Serv
 - Graceful degradation for JavaScript-disabled environments
 
 ### 3. Data Persistence Strategy
-- **D1 Database**: All persistent data (settings, balances, history)
-  - Current balance cache with 60-second freshness check
-  - Historical snapshots every 30 minutes
-  - User settings and preferences
-- **localStorage**: Temporary client state only (non-critical UI preferences)
+- **D1 Database**: All persistent data (settings, history, sessions)
+  - Direct API calls for real-time balance (no caching)
+  - Historical snapshots every 30 minutes for analytics
+  - User settings, preferences, and checklists
+  - Session management for authentication
+- **No localStorage**: Fully server-side rendered with D1 persistence
 
 ## Timezone Handling
 
@@ -146,15 +147,23 @@ wrangler d1 create hyper-trader-hub-db
 ```sql
 -- migrations/0001_initial_schema.sql
 
--- Current balance cache (replaces KV storage)
-CREATE TABLE current_balances (
-  user_address TEXT PRIMARY KEY,
-  balance_data TEXT NOT NULL, -- JSON of full balance info
-  account_value REAL NOT NULL,
-  perps_value REAL NOT NULL,
-  spot_value REAL NOT NULL DEFAULT 0,
-  staking_value REAL NOT NULL DEFAULT 0,
-  updated_at INTEGER NOT NULL
+-- User sessions for authentication
+CREATE TABLE user_sessions (
+  id TEXT PRIMARY KEY,
+  user_address TEXT NOT NULL,
+  created_at INTEGER DEFAULT (unixepoch()),
+  expires_at INTEGER NOT NULL,
+  INDEX idx_user_address (user_address),
+  INDEX idx_expires (expires_at)
+);
+
+-- User checklists for trading criteria
+CREATE TABLE user_checklists (
+  user_address TEXT NOT NULL,
+  checklist_type TEXT NOT NULL, -- 'entry' or 'exit'
+  items TEXT NOT NULL, -- JSON array
+  updated_at INTEGER DEFAULT (unixepoch()),
+  PRIMARY KEY (user_address, checklist_type)
 );
 
 -- User settings with timezone
@@ -374,15 +383,29 @@ import {
   uniqueIndex 
 } from "drizzle-orm/sqlite-core";
 
-// Current balance cache - replaces KV storage
-export const currentBalances = sqliteTable("current_balances", {
-  userAddress: text("user_address").primaryKey(),
-  balanceData: text("balance_data").notNull(), // JSON of full balance info
-  accountValue: real("account_value").notNull(),
-  perpsValue: real("perps_value").notNull(),
-  spotValue: real("spot_value").notNull().default(0),
-  stakingValue: real("staking_value").notNull().default(0),
-  updatedAt: integer("updated_at").notNull(),
+// User sessions for authentication
+export const userSessions = sqliteTable("user_sessions", {
+  id: text("id").primaryKey(),
+  userAddress: text("user_address").notNull(),
+  createdAt: integer("created_at").default(sql`(unixepoch())`),
+  expiresAt: integer("expires_at").notNull(),
+}, (table) => {
+  return {
+    userAddressIdx: index("idx_user_address").on(table.userAddress),
+    expiresIdx: index("idx_expires").on(table.expiresAt),
+  };
+});
+
+// User checklists for trading criteria
+export const userChecklists = sqliteTable("user_checklists", {
+  userAddress: text("user_address").notNull(),
+  checklistType: text("checklist_type").notNull(), // 'entry' or 'exit'
+  items: text("items").notNull(), // JSON array
+  updatedAt: integer("updated_at").default(sql`(unixepoch())`),
+}, (table) => {
+  return {
+    pk: uniqueIndex("pk_user_checklist").on(table.userAddress, table.checklistType),
+  };
 });
 
 export const userSettings = sqliteTable("user_settings", {
@@ -505,11 +528,11 @@ export async function getDailyBalance(
 
 ## Time-Based Module Redesign
 
-### 1. Balance Updater Service (D1-Only)
+### 1. Balance Service (Direct API Calls)
 
 ```typescript
 // app/services/balance.server.ts
-import { getDb, getCurrentBalance, upsertCurrentBalance } from "~/db/client.server";
+import { getDb, getDailyBalance, createDailyBalance } from "~/db/client.server";
 import { HyperliquidService, type BalanceInfo } from "~/lib/hyperliquid";
 import { getUserDateString } from "~/lib/time-utils.server";
 
@@ -521,52 +544,28 @@ export class BalanceService {
   ) {}
 
   /**
-   * Get current balance from D1 cache
-   * Returns null if not found or too old (> 60 seconds)
+   * Fetch balance directly from Hyperliquid API
+   * No caching - always fresh data
    */
-  async getCachedBalance(): Promise<BalanceInfo | null> {
-    const db = getDb(this.env);
-    const cached = await getCurrentBalance(db, this.userAddress);
-    
-    if (!cached) return null;
-    
-    // Check if cache is fresh (less than 60 seconds old)
-    const age = Math.floor(Date.now() / 1000) - cached.updatedAt;
-    if (age > 60) return null;
-    
-    try {
-      return JSON.parse(cached.balanceData) as BalanceInfo;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Fetch fresh balance from Hyperliquid and update D1
-   */
-  async fetchAndUpdateBalance(): Promise<BalanceInfo> {
-    const db = getDb(this.env);
+  async getBalance(): Promise<BalanceInfo> {
     const hlService = new HyperliquidService();
-    
-    // Fetch fresh balance
     const balance = await hlService.getUserBalances(this.userAddress);
     
-    // Update current balance in D1
-    await upsertCurrentBalance(db, this.userAddress, balance);
+    // Ensure daily balance record exists
+    await this.ensureDailyBalance(balance);
     
     return balance;
   }
 
   /**
-   * Get balance with cache-first strategy
+   * Get today's starting balance from D1
    */
-  async getBalance(): Promise<BalanceInfo> {
-    // Try cache first
-    const cached = await this.getCachedBalance();
-    if (cached) return cached;
+  async getDailyStartBalance(): Promise<number> {
+    const db = getDb(this.env);
+    const userDate = getUserDateString(new Date(), this.timezoneOffset);
     
-    // Fetch fresh if cache miss or stale
-    return await this.fetchAndUpdateBalance();
+    const dailyBalance = await getDailyBalance(db, this.userAddress, userDate);
+    return dailyBalance?.startBalance || 0;
   }
 }
 
@@ -593,29 +592,26 @@ export async function getBalanceData(
 }
 ```
 
-### 2. Real-time P&L Tracking
+### 2. API Route for Balance
 
 ```typescript
 // app/routes/api.balance.ts
 import { json, type LoaderFunctionArgs } from "react-router";
+import { requireAuth } from "~/lib/auth.server";
 import { getBalanceData } from "~/services/balance.server";
 import { getUserSettings } from "~/db/client.server";
 import { getDb } from "~/db/client.server";
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  const url = new URL(request.url);
-  const userAddress = url.searchParams.get("address");
-  
-  if (!userAddress) {
-    return json({ error: "Address required" }, { status: 400 });
-  }
+  // Require authentication
+  const userAddress = await requireAuth(request, context.env);
   
   // Get user timezone
   const db = getDb(context.env);
   const settings = await getUserSettings(db, userAddress);
   const timezoneOffset = settings?.timezoneOffset || 0;
   
-  // Get balance data (with D1 caching)
+  // Get balance data (direct API call, no caching)
   const balanceData = await getBalanceData(
     context.env,
     userAddress,
@@ -751,10 +747,10 @@ export function TradingTimeBar({
 ```typescript
 // workers/cron.ts
 import { getDb } from "~/db/client.server";
-import { dailyBalances, positionSnapshots, cronLogs, userSettings, currentBalances } from "~/db/schema";
+import { dailyBalances, positionSnapshots, cronLogs, userSettings } from "~/db/schema";
 import { HyperliquidService } from "~/lib/hyperliquid";
 import { convertUTCToUserTime } from "~/lib/time-utils.server";
-import { sql, and, eq, lt, gte, desc } from "drizzle-orm";
+import { sql, and, eq, lt, desc } from "drizzle-orm";
 
 export interface Env {
   DB: D1Database;
@@ -859,24 +855,22 @@ async function captureSnapshots(env: Env) {
   const db = getDb(env);
   const hlService = new HyperliquidService();
   
-  // Get active users from recent balance updates in D1
-  const recentTime = Math.floor(Date.now() / 1000) - 3600; // Last hour
-  const activeUsers = await db
-    .selectDistinct({ userAddress: currentBalances.userAddress })
-    .from(currentBalances)
-    .where(gte(currentBalances.updatedAt, recentTime))
+  // Get all users to check for active positions
+  const users = await db
+    .select()
+    .from(userSettings)
     .all();
   
   let processedCount = 0;
   
-  for (const { userAddress } of activeUsers) {
+  for (const user of users) {
     try {
-      const balance = await hlService.getUserBalances(userAddress);
+      const balance = await hlService.getUserBalances(user.userAddress);
       
       // Only capture if there are positions
       if (balance.perpetualPositions.length > 0) {
         await db.insert(positionSnapshots).values({
-          userAddress,
+          userAddress: user.userAddress,
           snapshotTime: Math.floor(Date.now() / 1000),
           positions: JSON.stringify(balance.perpetualPositions),
           totalPnl: balance.perpetualPositions.reduce(
@@ -891,7 +885,7 @@ async function captureSnapshots(env: Env) {
         processedCount++;
       }
     } catch (error) {
-      console.error(`Error capturing snapshot for ${userAddress}:`, error);
+      console.error(`Error capturing snapshot for ${user.userAddress}:`, error);
     }
   }
   
@@ -1199,31 +1193,38 @@ CREATE INDEX idx_balance_summary
 ON daily_balances(user_address, user_date, start_balance, daily_pnl);
 ```
 
-### 2. Caching Strategy
+### 2. Data Strategy
 
 ```typescript
-// Cache layers:
-// 1. D1 current_balances table - 60 second cache
-// 2. D1 historical data - Permanent storage
-// 3. Browser cache - Static assets
+// Data layers:
+// 1. Direct API calls for real-time balance (no caching)
+// 2. D1 historical snapshots - Every 30 minutes for analytics
+// 3. D1 user data - Settings, sessions, checklists
 
-export async function getCachedBalance(env: Env, userAddress: string) {
-  const db = getDb(env);
-  
-  // Check D1 cache
-  const cached = await getCurrentBalance(db, userAddress);
-  if (cached && (Date.now() / 1000 - cached.updatedAt) < 60) {
-    return JSON.parse(cached.balanceData);
-  }
-  
-  // Cache miss - fetch fresh data
+export async function getBalance(userAddress: string): Promise<BalanceInfo> {
+  // Always fetch fresh data
   const hlService = new HyperliquidService();
-  const balance = await hlService.getUserBalances(userAddress);
+  return await hlService.getUserBalances(userAddress);
+}
+
+export async function getHistoricalSnapshots(
+  db: D1Database,
+  userAddress: string,
+  days: number = 7
+): Promise<PositionSnapshot[]> {
+  const sinceTime = Math.floor(Date.now() / 1000) - (days * 24 * 60 * 60);
   
-  // Update cache
-  await upsertCurrentBalance(db, userAddress, balance);
-  
-  return balance;
+  return await db
+    .select()
+    .from(positionSnapshots)
+    .where(
+      and(
+        eq(positionSnapshots.userAddress, userAddress),
+        gte(positionSnapshots.snapshotTime, sinceTime)
+      )
+    )
+    .orderBy(desc(positionSnapshots.snapshotTime))
+    .all();
 }
 ```
 

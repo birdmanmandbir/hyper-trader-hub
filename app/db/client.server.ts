@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/d1";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, gt } from "drizzle-orm";
 import * as schema from "./schema";
 import type { BalanceInfo } from "~/lib/hyperliquid";
 
@@ -125,60 +125,83 @@ export async function logCronExecution(
     });
 }
 
-// Current balance helpers
-export async function getCurrentBalance(
+// User session helpers
+export async function createUserSession(
   db: ReturnType<typeof getDb>,
   userAddress: string
-): Promise<schema.CurrentBalance | null> {
+): Promise<string> {
+  const sessionId = crypto.randomUUID();
+  const expiresAt = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60); // 30 days
+  
+  await db
+    .insert(schema.userSessions)
+    .values({
+      id: sessionId,
+      userAddress,
+      expiresAt,
+    });
+  
+  return sessionId;
+}
+
+export async function getUserSession(
+  db: ReturnType<typeof getDb>,
+  sessionId: string
+): Promise<schema.UserSession | null> {
   const result = await db
     .select()
-    .from(schema.currentBalances)
-    .where(eq(schema.currentBalances.userAddress, userAddress))
+    .from(schema.userSessions)
+    .where(
+      and(
+        eq(schema.userSessions.id, sessionId),
+        gt(schema.userSessions.expiresAt, Math.floor(Date.now() / 1000))
+      )
+    )
     .limit(1);
   
   return result[0] || null;
 }
 
-export async function upsertCurrentBalance(
+// User checklist helpers
+export async function getUserChecklists(
+  db: ReturnType<typeof getDb>,
+  userAddress: string
+): Promise<{ entry: any[], exit: any[] }> {
+  const result = await db
+    .select()
+    .from(schema.userChecklists)
+    .where(eq(schema.userChecklists.userAddress, userAddress));
+  
+  const checklists = { entry: [], exit: [] };
+  
+  for (const row of result) {
+    try {
+      checklists[row.checklistType as 'entry' | 'exit'] = JSON.parse(row.items);
+    } catch {
+      // Invalid JSON, use empty array
+    }
+  }
+  
+  return checklists;
+}
+
+export async function upsertUserChecklist(
   db: ReturnType<typeof getDb>,
   userAddress: string,
-  balance: BalanceInfo
+  checklistType: 'entry' | 'exit',
+  items: any[]
 ): Promise<void> {
-  const accountValue = parseFloat(balance.accountValue);
-  const perpsValue = accountValue; // For perps-only accounts
-  
-  // Calculate spot value
-  const spotValue = balance.spotBalances.reduce((total, bal) => {
-    const amount = parseFloat(bal.total);
-    if (amount === 0) return total;
-    // For USDC, value is 1:1
-    if (bal.coin === "USDC") return total + amount;
-    // For other coins, would need price data
-    return total;
-  }, 0);
-  
-  // Calculate staking value (would need HYPE price)
-  const stakingValue = 0; // TODO: Calculate with HYPE price
-  
   await db
-    .insert(schema.currentBalances)
+    .insert(schema.userChecklists)
     .values({
       userAddress,
-      balanceData: JSON.stringify(balance),
-      accountValue,
-      perpsValue,
-      spotValue,
-      stakingValue,
-      updatedAt: Math.floor(Date.now() / 1000),
+      checklistType,
+      items: JSON.stringify(items),
     })
     .onConflictDoUpdate({
-      target: schema.currentBalances.userAddress,
+      target: [schema.userChecklists.userAddress, schema.userChecklists.checklistType],
       set: {
-        balanceData: JSON.stringify(balance),
-        accountValue,
-        perpsValue,
-        spotValue,
-        stakingValue,
+        items: JSON.stringify(items),
         updatedAt: Math.floor(Date.now() / 1000),
       },
     });

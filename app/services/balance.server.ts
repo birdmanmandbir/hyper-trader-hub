@@ -1,6 +1,6 @@
-import { getDb, getCurrentBalance, upsertCurrentBalance, getDailyBalance, createDailyBalance } from "~/db/client.server";
+import { getDb, getDailyBalance, createDailyBalance } from "~/db/client.server";
 import { HyperliquidService, type BalanceInfo } from "~/lib/hyperliquid";
-import { getUserDateString, convertUTCToUserTime } from "~/lib/time-utils.server";
+import { getUserDateString } from "~/lib/time-utils.server";
 
 export class BalanceService {
   constructor(
@@ -10,55 +10,17 @@ export class BalanceService {
   ) {}
 
   /**
-   * Get current balance from D1 cache
-   * Returns null if not found or too old (> 60 seconds)
+   * Fetch balance directly from Hyperliquid API
+   * No caching - always fresh data
    */
-  async getCachedBalance(): Promise<BalanceInfo | null> {
-    const db = getDb(this.env);
-    const cached = await getCurrentBalance(db, this.userAddress);
-    
-    if (!cached) return null;
-    
-    // Check if cache is fresh (less than 60 seconds old)
-    const age = Math.floor(Date.now() / 1000) - cached.updatedAt;
-    if (age > 60) return null;
-    
-    try {
-      return JSON.parse(cached.balanceData) as BalanceInfo;
-    } catch {
-      return null;
-    }
-  }
-
-  /**
-   * Fetch fresh balance from Hyperliquid and update D1
-   */
-  async fetchAndUpdateBalance(): Promise<BalanceInfo> {
-    const db = getDb(this.env);
+  async getBalance(): Promise<BalanceInfo> {
     const hlService = new HyperliquidService();
-    
-    // Fetch fresh balance
     const balance = await hlService.getUserBalances(this.userAddress);
     
-    // Update current balance in D1
-    await upsertCurrentBalance(db, this.userAddress, balance);
-    
-    // Check if we need to initialize daily balance
+    // Ensure daily balance record exists
     await this.ensureDailyBalance(balance);
     
     return balance;
-  }
-
-  /**
-   * Get balance with cache-first strategy
-   */
-  async getBalance(): Promise<BalanceInfo> {
-    // Try cache first
-    const cached = await this.getCachedBalance();
-    if (cached) return cached;
-    
-    // Fetch fresh if cache miss or stale
-    return await this.fetchAndUpdateBalance();
   }
 
   /**
