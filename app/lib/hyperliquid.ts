@@ -1,4 +1,5 @@
 import * as hl from "@nktkas/hyperliquid";
+import { getPriceDecimals } from "./price-decimals";
 
 export interface StakingInfo {
   totalStaked: string;
@@ -174,11 +175,12 @@ export class HyperliquidService {
 
   formatUsdValue(value: string | number): string {
     const num = typeof value === "string" ? parseFloat(value) : value;
+    const decimals = getPriceDecimals(num);
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: Math.min(decimals, 2),
+      maximumFractionDigits: decimals,
     }).format(num);
   }
 

@@ -1,5 +1,6 @@
 import * as React from "react";
 import * as hl from "@nktkas/hyperliquid";
+import { formatPrice } from "~/lib/price-decimals";
 
 interface AllMidsData {
   mids: Record<string, string>;
@@ -34,9 +35,7 @@ export function useLivePrice(coin: string) {
             const midPrice = event.mids[coin];
             // Format price based on value
             const priceNum = parseFloat(midPrice);
-            const formattedPrice = priceNum >= 1 
-              ? priceNum.toFixed(1) 
-              : priceNum.toFixed(5);
+            const formattedPrice = formatPrice(priceNum);
             setPrice(formattedPrice);
           }
         });

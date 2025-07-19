@@ -4,6 +4,7 @@ import type { Order } from "~/lib/hyperliquid";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { formatPrice as formatPriceWithDecimals } from "~/lib/price-decimals";
 
 interface PositionOrderChartProps {
   coin: string;
@@ -69,7 +70,7 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
   
   // Format price based on value
   const formatPrice = (price: number) => {
-    return price >= 1 ? price.toFixed(1) : price.toFixed(5);
+    return formatPriceWithDecimals(price);
   };
   
   // Format dollar value
