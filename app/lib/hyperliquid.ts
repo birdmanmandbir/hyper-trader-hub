@@ -91,8 +91,8 @@ export class HyperliquidService {
           unrealizedPnl: pos.position.unrealizedPnl || "0",
           returnOnEquity: pos.position.returnOnEquity || "0",
           marginUsed: pos.position.marginUsed || "0",
-          leverage: pos.position.leverage?.value || 0,
-          leverageType: pos.position.leverage?.type || "cross",
+          leverage: pos.position.leverage?.value ?? 0,
+          leverageType: pos.position.leverage?.type ?? "cross",
           liquidationPx: pos.position.liquidationPx || "0",
           maintMarginReq: pos.position.maintMarginReq || "0.0625",
         }));
@@ -179,11 +179,11 @@ export class HyperliquidService {
 
   formatUsdValue(value: string | number, forceDecimals?: number): string {
     const num = typeof value === "string" ? parseFloat(value) : value;
-    const decimals = forceDecimals !== undefined ? forceDecimals : getPriceDecimals(num);
+    const decimals = forceDecimals ?? getPriceDecimals(num);
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
-      minimumFractionDigits: forceDecimals !== undefined ? forceDecimals : Math.min(decimals, 2),
+      minimumFractionDigits: forceDecimals ?? Math.min(decimals, 2),
       maximumFractionDigits: decimals,
     }).format(num);
   }
