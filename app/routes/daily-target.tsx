@@ -238,7 +238,7 @@ export default function DailyTarget() {
                   <span className="text-2xl">{isTargetAchieved ? "🎯" : "📈"}</span>
                 </CardTitle>
                 <CardDescription>
-                  {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                  Daily Trading Progress
                 </CardDescription>
               </CardHeader>
               <CardContent>

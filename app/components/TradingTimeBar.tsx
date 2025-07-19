@@ -8,9 +8,13 @@ interface TradingTimeBarProps {
 }
 
 export function TradingTimeBar({ preferredTimes, avoidedTimes }: TradingTimeBarProps) {
-  const [currentTime, setCurrentTime] = React.useState(new Date());
+  // Initialize with null to avoid hydration mismatch
+  const [currentTime, setCurrentTime] = React.useState<Date | null>(null);
 
   React.useEffect(() => {
+    // Set initial time after mount
+    setCurrentTime(new Date());
+    
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 60000); // Update every minute
@@ -24,10 +28,12 @@ export function TradingTimeBar({ preferredTimes, avoidedTimes }: TradingTimeBarP
   };
 
   const getCurrentMinutes = (): number => {
+    if (!currentTime) return 0;
     return currentTime.getHours() * 60 + currentTime.getMinutes();
   };
 
-  const formatTime = (date: Date): string => {
+  const formatTime = (date: Date | null): string => {
+    if (!date) return '--:--';
     return date.toLocaleTimeString('en-US', { 
       hour: '2-digit', 
       minute: '2-digit',
@@ -126,7 +132,7 @@ export function TradingTimeBar({ preferredTimes, avoidedTimes }: TradingTimeBarP
           {/* Current Time Display */}
           <div className="flex justify-between items-center text-sm">
             <span className="text-muted-foreground">Current Time</span>
-            <span className="font-semibold">{formatTime(currentTime)}</span>
+            <span className="font-semibold">{currentTime ? formatTime(currentTime) : '--:--'}</span>
           </div>
 
           {/* Time Bar */}

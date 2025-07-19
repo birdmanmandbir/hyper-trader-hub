@@ -1,19 +1,25 @@
 import { useState, useEffect } from "react";
 
 export function useLocalStorage<T>(key: string, initialValue: T) {
-  // State to store our value
-  // Pass initial state function to useState so logic is only executed once
-  const [storedValue, setStoredValue] = useState<T>(() => {
+  // Always use initialValue for the initial render to avoid hydration mismatch
+  const [storedValue, setStoredValue] = useState<T>(initialValue);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Load from localStorage after hydration
+  useEffect(() => {
+    setIsHydrated(true);
+    
     if (typeof window === "undefined") {
-      return initialValue;
+      return;
     }
+    
     try {
       // Get from local storage by key
       const item = window.localStorage.getItem(key);
       if (!item) {
-        // No stored value, save and return initialValue
+        // No stored value, save initialValue
         window.localStorage.setItem(key, JSON.stringify(initialValue));
-        return initialValue;
+        return;
       }
       
       const parsed = JSON.parse(item);
@@ -25,17 +31,16 @@ export function useLocalStorage<T>(key: string, initialValue: T) {
         if (JSON.stringify(merged) !== JSON.stringify(parsed)) {
           window.localStorage.setItem(key, JSON.stringify(merged));
         }
-        return merged as T;
+        setStoredValue(merged as T);
+      } else {
+        setStoredValue(parsed);
       }
-      
-      return parsed;
     } catch (error) {
-      // If error also return initialValue
+      // If error also use initialValue
       console.log(error);
       window.localStorage.setItem(key, JSON.stringify(initialValue));
-      return initialValue;
     }
-  });
+  }, []); // Only run once after mount
 
   // Return a wrapped version of useState's setter function that ...
   // ... persists the new value to localStorage.

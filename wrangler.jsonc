@@ -33,6 +33,27 @@
   "assets": {
     "directory": "./build/client",
     "binding": "ASSETS"
+  },
+  /**
+   * D1 Database
+   * Create with: wrangler d1 create hyper-trader-hub-db
+   */
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "hyper-trader-hub-db",
+      "database_id": "23d6650f-503f-48ce-8ff2-2de7c1e09a39"
+    }
+  ],
+  /**
+   * Cron Triggers
+   */
+  "triggers": {
+    "crons": [
+      "0 0 * * *",      // Daily reset at 00:00 UTC
+      "*/30 * * * *",   // Position snapshots every 30 minutes
+      "0 3 * * 0"       // Weekly cleanup on Sunday at 3 AM UTC
+    ]
   }
   /**
 	 * Custom Domain

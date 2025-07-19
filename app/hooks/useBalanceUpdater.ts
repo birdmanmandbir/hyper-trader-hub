@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useLocalStorage } from "./useLocalStorage";
 import { HyperliquidService, type BalanceInfo } from "~/lib/hyperliquid";
+import { getStableTimestamp } from "~/lib/stable-timestamp";
 
 interface StoredBalance {
   accountValue: number;
@@ -27,8 +28,12 @@ export function useBalanceUpdater(walletAddress: string | null) {
   const hlService = new HyperliquidService();
 
   const getTodayDateString = () => {
+    // Use UTC date to ensure consistency between server and client
     const today = new Date();
-    return today.toLocaleDateString('en-CA'); // Returns YYYY-MM-DD format
+    const year = today.getUTCFullYear();
+    const month = String(today.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(today.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`; // Returns YYYY-MM-DD format
   };
 
   const updateBalances = useCallback(async () => {
@@ -73,7 +78,7 @@ export function useBalanceUpdater(walletAddress: string | null) {
         spotValue,
         stakingValue,
         perpsValue,
-        lastUpdated: Date.now(),
+        lastUpdated: getStableTimestamp(),
         rawData: balances
       };
 
@@ -100,7 +105,7 @@ export function useBalanceUpdater(walletAddress: string | null) {
     if (!walletAddress) return;
 
     // Initial update if needed
-    if (!storedBalance || Date.now() - storedBalance.lastUpdated > UPDATE_INTERVAL) {
+    if (!storedBalance || getStableTimestamp() - storedBalance.lastUpdated > UPDATE_INTERVAL) {
       updateBalances();
     }
 
@@ -117,7 +122,7 @@ export function useBalanceUpdater(walletAddress: string | null) {
     if (!storedBalance) return;
 
     const updateCountdown = () => {
-      const elapsed = Date.now() - storedBalance.lastUpdated;
+      const elapsed = getStableTimestamp() - storedBalance.lastUpdated;
       const remaining = Math.max(0, UPDATE_INTERVAL - elapsed);
       setNextUpdateIn(Math.ceil(remaining / 1000));
     };
