@@ -177,13 +177,13 @@ export class HyperliquidService {
     }
   }
 
-  formatUsdValue(value: string | number): string {
+  formatUsdValue(value: string | number, forceDecimals?: number): string {
     const num = typeof value === "string" ? parseFloat(value) : value;
-    const decimals = getPriceDecimals(num);
+    const decimals = forceDecimals !== undefined ? forceDecimals : getPriceDecimals(num);
     return new Intl.NumberFormat("en-US", {
       style: "currency",
       currency: "USD",
-      minimumFractionDigits: Math.min(decimals, 2),
+      minimumFractionDigits: forceDecimals !== undefined ? forceDecimals : Math.min(decimals, 2),
       maximumFractionDigits: decimals,
     }).format(num);
   }

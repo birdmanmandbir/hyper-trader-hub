@@ -28,7 +28,7 @@ export function RealtimePnLSummary({ positions }: RealtimePnLSummaryProps) {
     <div className="text-right">
       <p className="text-sm text-muted-foreground">Total P&L (Live)</p>
       <p className={`text-xl font-bold ${totalPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-        {hlService.formatUsdValue(totalPnL)}
+        {hlService.formatUsdValue(totalPnL, 2)}
       </p>
       <p className="text-xs text-muted-foreground">
         on {hlService.formatUsdValue(totalNotional)} notional

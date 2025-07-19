@@ -35,7 +35,7 @@ export default function Home() {
         
         // Format title with P&L and account value
         const pnlSign = totalPnL >= 0 ? '+' : '';
-        const pnlFormatted = hlService.formatUsdValue(totalPnL).replace('$', '');
+        const pnlFormatted = hlService.formatUsdValue(totalPnL, 2).replace('$', '');
         const accountFormatted = hlService.formatUsdValue(accountValue).replace('$', '');
         
         document.title = `${pnlSign}$${pnlFormatted} | $${accountFormatted} - HTH`;

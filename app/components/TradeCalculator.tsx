@@ -505,7 +505,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
                   -{riskPercentage.toFixed(2)}% move
                 </p>
                 <p className="text-xs text-red-600">
-                  -{hlService.formatUsdValue(riskDollar)}
+                  -{hlService.formatUsdValue(riskDollar, 2)}
                 </p>
                 <p className="text-xs text-red-600/80">
                   Includes {hlService.formatUsdValue(feeCost)} fees
@@ -519,7 +519,7 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
                   +{rewardPercentage.toFixed(2)}% move
                 </p>
                 <p className="text-xs text-green-600">
-                  +{hlService.formatUsdValue(rewardDollar)}
+                  +{hlService.formatUsdValue(rewardDollar, 2)}
                 </p>
                 <p className="text-xs text-green-600/80">
                   After {hlService.formatUsdValue(feeCost)} fees
@@ -547,8 +547,8 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
               <ul className="text-xs space-y-0.5 text-muted-foreground">
                 <li>• {coin} {isLong ? "Long" : "Short"} @ {formatPrice(entryPrice)}</li>
                 <li>• Position: <span className="font-semibold text-foreground">{positionSizeInCoins.toFixed(4)} {coin}</span> ({hlService.formatUsdValue(positionSize)}, {actualLeverage.toFixed(1)}x leverage)</li>
-                <li>• Target: <span className="font-semibold text-green-600">{formatPrice(tpPrice)}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(rewardDollar)} net)</li>
-                <li>• Stop: <span className="font-semibold text-red-600">{formatPrice(slPrice)}</span> (-{riskPercentage.toFixed(2)}%, {hlService.formatUsdValue(riskDollar)} total loss)</li>
+                <li>• Target: <span className="font-semibold text-green-600">{formatPrice(tpPrice)}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(rewardDollar, 2)} net)</li>
+                <li>• Stop: <span className="font-semibold text-red-600">{formatPrice(slPrice)}</span> (-{riskPercentage.toFixed(2)}%, {hlService.formatUsdValue(riskDollar, 2)} total loss)</li>
                 <li>• SL BE: <span className="font-semibold">{formatPrice(slBePrice)}</span> ({beMovementPercentage.toFixed(3)}% move to breakeven)</li>
                 <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> ({hlService.formatUsdValue(feeCost)})</li>
                 <li>• R:R Ratio: <span className="font-semibold">1:{rrRatio.toFixed(2)}</span> {isAutoMode && `(fixed ${fixedSLPercentage}% risk, ${(dailyTarget.targetPercentage / dailyTarget.minimumTrades).toFixed(1)}% target)`}</li>

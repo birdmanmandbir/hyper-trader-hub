@@ -77,7 +77,7 @@ export function PositionCard({ position, orders, takerFee, makerFee, accountValu
         </div>
         <div className="text-right">
           <p className={`font-semibold ${realTimePnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {hlService.formatUsdValue(realTimePnL)}
+            {hlService.formatUsdValue(realTimePnL, 2)}
           </p>
           <p className="text-xs text-muted-foreground">
             ROE: {realTimeROE >= 0 ? '+' : ''}{realTimeROE.toFixed(2)}%

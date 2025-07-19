@@ -277,7 +277,7 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
                             <div className="text-sm">
                               <span className="text-muted-foreground">Profit: </span>
                               <span className="font-semibold text-green-600">
-                                +{hlService.formatUsdValue(totalExpectedProfit)}
+                                +{hlService.formatUsdValue(totalExpectedProfit, 2)}
                               </span>
                             </div>
                           )}
@@ -285,7 +285,7 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
                             <div className="text-sm">
                               <span className="text-muted-foreground">Risk: </span>
                               <span className="font-semibold text-red-600">
-                                -{hlService.formatUsdValue(totalExpectedLoss)}
+                                -{hlService.formatUsdValue(totalExpectedLoss, 2)}
                               </span>
                             </div>
                           )}
