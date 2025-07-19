@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useLivePrice } from "./useLivePrice";
+import { useHyperliquidWebSocket } from "./useHyperliquidWebSocket";
 
 interface Position {
   coin: string;
@@ -9,27 +9,38 @@ interface Position {
 }
 
 export function useRealtimePnL(positions: Position[]) {
-  const [totalPnL, setTotalPnL] = React.useState(0);
-  const [positionPnLs, setPositionPnLs] = React.useState<Record<string, number>>({});
+  const [prices, setPrices] = React.useState<Record<string, string>>({});
   
-  // Create a hook for each unique coin
-  const uniqueCoins = [...new Set(positions.map(p => p.coin))];
-  const priceData: Record<string, string> = {};
+  // Get unique coins from positions
+  const coins = React.useMemo(
+    () => [...new Set(positions.map(p => p.coin))],
+    [positions]
+  );
   
-  // This is a bit of a hack to use hooks conditionally, but it works
-  // because the number of positions is relatively stable
-  uniqueCoins.forEach(coin => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const { price } = useLivePrice(coin);
-    if (price) priceData[coin] = price;
+  const handlePriceUpdate = React.useCallback((mids: Record<string, string>) => {
+    // Update prices for our coins
+    const updatedPrices: Record<string, string> = {};
+    coins.forEach(coin => {
+      if (mids[coin]) {
+        updatedPrices[coin] = mids[coin];
+      }
+    });
+    
+    setPrices(prev => ({ ...prev, ...updatedPrices }));
+  }, [coins]);
+  
+  const { isConnected } = useHyperliquidWebSocket({
+    enabled: coins.length > 0,
+    onPriceUpdate: handlePriceUpdate
   });
-  
-  React.useEffect(() => {
+
+  // Calculate P&L
+  const { totalPnL, positionPnLs } = React.useMemo(() => {
     const newPnLs: Record<string, number> = {};
     let total = 0;
     
     positions.forEach((pos, idx) => {
-      const livePrice = priceData[pos.coin];
+      const livePrice = prices[pos.coin];
       const sizeNum = parseFloat(pos.szi);
       const isLong = sizeNum > 0;
       const sizeAbs = Math.abs(sizeNum);
@@ -40,6 +51,7 @@ export function useRealtimePnL(positions: Position[]) {
         const currentPrice = parseFloat(livePrice);
         pnl = sizeAbs * (isLong ? (currentPrice - entryPrice) : (entryPrice - currentPrice));
       } else {
+        // Fallback to unrealized P&L from API
         pnl = parseFloat(pos.unrealizedPnl || "0");
       }
       
@@ -48,9 +60,8 @@ export function useRealtimePnL(positions: Position[]) {
       total += pnl;
     });
     
-    setPositionPnLs(newPnLs);
-    setTotalPnL(total);
-  }, [positions, priceData]);
+    return { totalPnL: total, positionPnLs: newPnLs };
+  }, [positions, prices]);
   
-  return { totalPnL, positionPnLs };
+  return { totalPnL, positionPnLs, isConnected };
 }
