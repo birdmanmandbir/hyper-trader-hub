@@ -6,6 +6,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "hyper-trader-hub",
   "compatibility_date": "2025-07-19",
+  "compatibility_flags": ["nodejs_compat"],
   "main": "./workers/app.ts",
   // Add your Cloudflare account ID here if you have one
   // "account_id": "YOUR_ACCOUNT_ID",

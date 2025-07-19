@@ -16,7 +16,8 @@
     "db:migrate:prod": "drizzle-kit migrate --config drizzle-prod.config.ts",
     "db:push": "drizzle-kit push --config drizzle-dev.config.ts",
     "db:push:prod": "drizzle-kit push --config drizzle-prod.config.ts",
-    "db:studio": "drizzle-kit studio --config drizzle-dev.config.ts"
+    "db:studio": "drizzle-kit studio --config drizzle-dev.config.ts",
+    "db:studio:prod": "drizzle-kit studio --config drizzle-prod.config.ts"
   },
   "dependencies": {
     "@nktkas/hyperliquid": "^0.22.1",
