@@ -4,6 +4,7 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { HyperliquidService, type BalanceInfo } from "~/lib/hyperliquid";
 import { PositionCard } from "~/components/PositionCard";
+import { RealtimePnLSummary } from "~/components/RealtimePnLSummary";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { DEFAULT_ADVANCED_SETTINGS, STORAGE_KEYS } from "~/lib/constants";
 import type { AdvancedSettings } from "~/lib/types";
@@ -193,29 +194,8 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
                   Your open perpetual positions
                 </CardDescription>
               </div>
-              {/* Total P&L Summary */}
-              <div className="text-right">
-                {(() => {
-                  const totalPnL = balances.perpetualPositions.reduce((sum, pos) => 
-                    sum + parseFloat(pos.unrealizedPnl || "0"), 0
-                  );
-                  const totalNotional = balances.perpetualPositions.reduce((sum, pos) => 
-                    sum + Math.abs(parseFloat(pos.szi) * parseFloat(pos.entryPx)), 0
-                  );
-                  
-                  return (
-                    <>
-                      <p className="text-sm text-muted-foreground">Total P&L</p>
-                      <p className={`text-xl font-bold ${totalPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {hlService.formatUsdValue(totalPnL)}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        on {hlService.formatUsdValue(totalNotional)} notional
-                      </p>
-                    </>
-                  );
-                })()}
-              </div>
+              {/* Real-time Total P&L Summary */}
+              <RealtimePnLSummary positions={balances.perpetualPositions} />
             </div>
           </CardHeader>
           <CardContent>

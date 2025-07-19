@@ -21,22 +21,31 @@ export default function Home() {
 
   // Update document title when balance changes
   useEffect(() => {
-    if (balance?.rawData?.perpetualPositions && balance.rawData.perpetualPositions.length > 0) {
-      // Calculate total P&L and notional
-      const totalPnL = balance.rawData.perpetualPositions.reduce((sum, pos) => 
-        sum + parseFloat(pos.unrealizedPnl || "0"), 0
-      );
+    if (balance?.rawData) {
+      const hasPositions = balance.rawData.perpetualPositions && balance.rawData.perpetualPositions.length > 0;
       
-      const totalNotional = balance.rawData.perpetualPositions.reduce((sum, pos) => 
-        sum + Math.abs(parseFloat(pos.szi) * parseFloat(pos.entryPx)), 0
-      );
-      
-      // Format title with P&L and position size
-      const pnlSign = totalPnL >= 0 ? '+' : '';
-      const pnlFormatted = hlService.formatUsdValue(totalPnL).replace('$', '');
-      const notionalFormatted = hlService.formatUsdValue(totalNotional).replace('$', '');
-      
-      document.title = `${pnlSign}$${pnlFormatted} | $${notionalFormatted} - HTH`;
+      if (hasPositions) {
+        // Calculate total P&L
+        const totalPnL = balance.rawData.perpetualPositions.reduce((sum, pos) => 
+          sum + parseFloat(pos.unrealizedPnl || "0"), 0
+        );
+        
+        // Get account value
+        const accountValue = parseFloat(balance.rawData.accountValue || "0");
+        
+        // Format title with P&L and account value
+        const pnlSign = totalPnL >= 0 ? '+' : '';
+        const pnlFormatted = hlService.formatUsdValue(totalPnL).replace('$', '');
+        const accountFormatted = hlService.formatUsdValue(accountValue).replace('$', '');
+        
+        document.title = `${pnlSign}$${pnlFormatted} | $${accountFormatted} - HTH`;
+      } else if (balance.accountValue > 0) {
+        // No positions but has account value
+        const accountFormatted = hlService.formatUsdValue(balance.accountValue).replace('$', '');
+        document.title = `$${accountFormatted} - HTH`;
+      } else {
+        document.title = "Hyper Trader Hub";
+      }
     } else {
       document.title = "Hyper Trader Hub";
     }
