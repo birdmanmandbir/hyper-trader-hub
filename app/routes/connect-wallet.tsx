@@ -1,4 +1,4 @@
-import { json, redirect, type ActionFunctionArgs } from "react-router";
+import { redirect, type ActionFunctionArgs } from "react-router";
 import { createSession, sessionCookie, initializeUserData } from "~/lib/auth.server";
 import * as React from "react";
 
@@ -8,14 +8,14 @@ export async function action({ request, context }: ActionFunctionArgs) {
   
   // Validate wallet address
   if (!walletAddress?.match(/^0x[a-fA-F0-9]{40}$/)) {
-    return json({ error: "Invalid wallet address format" }, { status: 400 });
+    return Response.json({ error: "Invalid wallet address format" }, { status: 400 });
   }
   
   // Create session
-  const sessionId = await createSession(context.env, walletAddress);
+  const sessionId = await createSession(context.cloudflare.env, walletAddress);
   
   // Initialize user data if needed
-  await initializeUserData(context.env, walletAddress);
+  await initializeUserData(context.cloudflare.env, walletAddress);
   
   // Set cookie and redirect
   return redirect("/", {

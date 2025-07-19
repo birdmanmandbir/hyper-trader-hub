@@ -8,7 +8,8 @@
       "Bash(git add:*)",
       "Bash(grep:*)",
       "Bash(mkdir:*)",
-      "WebFetch(domain:bundlephobia.com)"
+      "WebFetch(domain:bundlephobia.com)",
+      "WebFetch(domain:developers.cloudflare.com)"
     ],
     "deny": []
   }

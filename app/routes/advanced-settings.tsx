@@ -1,5 +1,5 @@
 import * as React from "react";
-import { json, redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
+import { redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
 import { useLoaderData, Form, useActionData, useNavigation } from "react-router";
 import { toast } from "sonner";
 import { Trash2, Plus } from "lucide-react";
@@ -14,8 +14,8 @@ import type { AdvancedSettings, TimePeriod, DailyTarget } from "~/lib/types";
 import { DEFAULT_ADVANCED_SETTINGS, DEFAULT_DAILY_TARGET } from "~/lib/constants";
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  const userAddress = await requireAuth(request, context.env);
-  const db = getDb(context.env);
+  const userAddress = await requireAuth(request, context.cloudflare.env);
+  const db = getDb(context.cloudflare.env);
   
   // Get user settings
   const settings = await getUserSettings(db, userAddress);
@@ -25,17 +25,17 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     ? JSON.parse(settings.advancedSettings) as AdvancedSettings
     : DEFAULT_ADVANCED_SETTINGS;
   
-  return json({
+  return {
     userAddress,
     advancedSettings,
     dailyTarget: settings?.dailyTarget || JSON.stringify(DEFAULT_DAILY_TARGET),
     timezoneOffset: settings?.timezoneOffset || 0,
-  });
+  };
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
-  const userAddress = await requireAuth(request, context.env);
-  const db = getDb(context.env);
+  const userAddress = await requireAuth(request, context.cloudflare.env);
+  const db = getDb(context.cloudflare.env);
   const formData = await request.formData();
   
   const actionType = formData.get("actionType") as string;
@@ -50,11 +50,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
       timezoneOffset: existingSettings?.timezoneOffset || 0,
     });
     
-    return json({ 
+    return { 
       success: true, 
       reset: true,
       message: "Settings reset to defaults" 
-    });
+    };
   } else {
     // Save settings
     const advancedSettingsData = formData.get("advancedSettings") as string;
@@ -68,10 +68,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
     });
     
     const settings = JSON.parse(advancedSettingsData) as AdvancedSettings;
-    return json({ 
+    return { 
       success: true,
       message: `Advanced settings saved successfully! Taker fee: ${settings.takerFee}%, Maker fee: ${settings.makerFee}%, Streak threshold: ${settings.streakThreshold}%, Loss threshold: ${settings.lossThreshold}%`
-    });
+    };
   }
 }
 

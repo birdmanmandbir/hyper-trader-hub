@@ -1,5 +1,5 @@
 import * as React from "react";
-import { json, redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
+import { redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
 import { useLoaderData, Link, Form, useActionData } from "react-router";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
@@ -17,8 +17,8 @@ import type { DailyTarget, AdvancedSettings } from "~/lib/types";
 import { DEFAULT_DAILY_TARGET, DEFAULT_ADVANCED_SETTINGS } from "~/lib/constants";
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  const userAddress = await requireAuth(request, context.env);
-  const db = getDb(context.env);
+  const userAddress = await requireAuth(request, context.cloudflare.env);
+  const db = getDb(context.cloudflare.env);
   
   // Get user settings
   const settings = await getUserSettings(db, userAddress);
@@ -35,7 +35,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   
   // Get balance data
   const { balance, dailyStartBalance } = await getBalanceData(
-    context.env,
+    context.cloudflare.env,
     userAddress,
     timezoneOffset
   );
@@ -44,7 +44,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const todayDate = getUserDateString(new Date(), timezoneOffset);
   const todayBalance = await getDailyBalance(db, userAddress, todayDate);
   
-  return json({
+  return {
     userAddress,
     dailyTarget,
     advancedSettings,
@@ -52,12 +52,12 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     dailyStartBalance,
     todayBalance,
     timezoneOffset,
-  });
+  };
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
-  const userAddress = await requireAuth(request, context.env);
-  const db = getDb(context.env);
+  const userAddress = await requireAuth(request, context.cloudflare.env);
+  const db = getDb(context.cloudflare.env);
   const formData = await request.formData();
   
   const targetPercentage = parseFloat(formData.get("targetPercentage") as string);
@@ -84,10 +84,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
     timezoneOffset: existingSettings?.timezoneOffset || 0,
   });
   
-  return json({ 
+  return { 
     success: true,
     message: "Daily target saved successfully!"
-  });
+  };
 }
 
 export default function DailyTarget() {

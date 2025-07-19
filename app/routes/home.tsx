@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import * as React from "react";
-import { json, redirect, type LoaderFunctionArgs } from "react-router";
+import { redirect, type LoaderFunctionArgs } from "react-router";
 import { useLoaderData, Form } from "react-router";
 import type { Route } from "./+types/home";
 import { BalanceDisplay } from "~/components/balance-display";
@@ -19,31 +19,31 @@ export function meta({}: Route.MetaArgs) {
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
   // Check if user is authenticated
-  const userAddress = await getSessionUser(request, context.env);
+  const userAddress = await getSessionUser(request, context.cloudflare.env);
   
   if (!userAddress) {
     throw redirect("/connect-wallet");
   }
   
   // Get user settings and balance data
-  const db = getDb(context.env);
+  const db = getDb(context.cloudflare.env);
   const settings = await getUserSettings(db, userAddress);
   const timezoneOffset = settings?.timezoneOffset || 0;
   
   // Get balance data
   const { balance, dailyStartBalance, timestamp } = await getBalanceData(
-    context.env,
+    context.cloudflare.env,
     userAddress,
     timezoneOffset
   );
   
-  return json({
+  return {
     userAddress,
     balance,
     dailyStartBalance,
     timestamp,
     settings,
-  });
+  };
 }
 
 export async function action({ request }: LoaderFunctionArgs) {
@@ -55,7 +55,7 @@ export async function action({ request }: LoaderFunctionArgs) {
     return redirect("/connect-wallet", { headers });
   }
   
-  return json({ error: "Invalid action" }, { status: 400 });
+  return Response.json({ error: "Invalid action" }, { status: 400 });
 }
 
 export default function Home() {

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
+import { type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
 import { useLoaderData, Form, useFetcher } from "react-router";
 import { Card } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -41,8 +41,8 @@ const defaultExitChecklist: ChecklistItem[] = [
 ];
 
 export async function loader({ request, context }: LoaderFunctionArgs) {
-  const userAddress = await requireAuth(request, context.env);
-  const db = getDb(context.env);
+  const userAddress = await requireAuth(request, context.cloudflare.env);
+  const db = getDb(context.cloudflare.env);
   
   // Get user checklists from D1
   const checklists = await getUserChecklists(db, userAddress);
@@ -51,16 +51,16 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const entryChecklist = checklists.entry.length > 0 ? checklists.entry : defaultEntryChecklist;
   const exitChecklist = checklists.exit.length > 0 ? checklists.exit : defaultExitChecklist;
   
-  return json({
+  return {
     userAddress,
     entryChecklist,
     exitChecklist,
-  });
+  };
 }
 
 export async function action({ request, context }: ActionFunctionArgs) {
-  const userAddress = await requireAuth(request, context.env);
-  const db = getDb(context.env);
+  const userAddress = await requireAuth(request, context.cloudflare.env);
+  const db = getDb(context.cloudflare.env);
   const formData = await request.formData();
   
   const actionType = formData.get("actionType") as string;
@@ -83,7 +83,7 @@ export async function action({ request, context }: ActionFunctionArgs) {
     await upsertUserChecklist(db, userAddress, checklistType, updatedItems);
   }
   
-  return json({ success: true });
+  return { success: true };
 }
 
 export default function ChecklistPage() {
