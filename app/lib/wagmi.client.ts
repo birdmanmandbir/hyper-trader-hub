@@ -2,7 +2,7 @@ import { createConfig, http } from 'wagmi';
 import { mainnet } from 'wagmi/chains';
 import { injected } from 'wagmi/connectors';
 
-// Configure wagmi
+// Configure wagmi (client-only)
 export const config = createConfig({
   chains: [mainnet],
   connectors: [
@@ -11,7 +11,7 @@ export const config = createConfig({
         return {
           id: 'metamask',
           name: 'MetaMask',
-          provider: typeof window !== 'undefined' ? window.ethereum : undefined,
+          provider: window.ethereum,
         };
       },
     }),
@@ -20,7 +20,7 @@ export const config = createConfig({
         return {
           id: 'rabby',
           name: 'Rabby Wallet',
-          provider: typeof window !== 'undefined' ? window.rabby : undefined,
+          provider: window.rabby,
         };
       },
     }),
@@ -29,7 +29,6 @@ export const config = createConfig({
   transports: {
     [mainnet.id]: http(),
   },
-  ssr: true, // Enable SSR mode
 });
 
 // Extend window type for wallet providers

@@ -1,7 +1,6 @@
 import { json, redirect, type ActionFunctionArgs } from "react-router";
 import { createSession, sessionCookie, initializeUserData } from "~/lib/auth.server";
-import { Web3Provider } from "~/components/Web3Provider";
-import { WalletConnector } from "~/components/WalletConnector";
+import * as React from "react";
 
 export async function action({ request, context }: ActionFunctionArgs) {
   const formData = await request.formData();
@@ -26,12 +25,43 @@ export async function action({ request, context }: ActionFunctionArgs) {
   });
 }
 
+// Lazy load client-only components
+const Web3Provider = React.lazy(() => import("~/components/Web3Provider.client").then(m => ({ default: m.Web3Provider })));
+const WalletConnector = React.lazy(() => import("~/components/WalletConnector").then(m => ({ default: m.WalletConnector })));
+
 export default function ConnectWallet() {
-  return (
-    <Web3Provider>
+  const [isClient, setIsClient] = React.useState(false);
+  
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
+  
+  if (!isClient) {
+    // Server-side or initial client render
+    return (
       <div className="min-h-screen flex items-center justify-center p-4">
-        <WalletConnector />
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Connect Your Wallet</h2>
+          <p className="text-muted-foreground">Loading wallet connection...</p>
+        </div>
       </div>
-    </Web3Provider>
+    );
+  }
+  
+  return (
+    <React.Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center p-4">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Connect Your Wallet</h2>
+          <p className="text-muted-foreground">Loading wallet connection...</p>
+        </div>
+      </div>
+    }>
+      <Web3Provider>
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <WalletConnector />
+        </div>
+      </Web3Provider>
+    </React.Suspense>
   );
 }
