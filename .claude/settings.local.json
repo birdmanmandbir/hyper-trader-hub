@@ -6,7 +6,8 @@
       "Bash(find:*)",
       "Bash(bun add:*)",
       "Bash(git add:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": []
   }
