@@ -11,7 +11,7 @@ export const config = createConfig({
         return {
           id: 'metamask',
           name: 'MetaMask',
-          provider: window.ethereum,
+          provider: typeof window !== 'undefined' ? window.ethereum : undefined,
         };
       },
     }),
@@ -20,7 +20,7 @@ export const config = createConfig({
         return {
           id: 'rabby',
           name: 'Rabby Wallet',
-          provider: window.rabby,
+          provider: typeof window !== 'undefined' ? window.rabby : undefined,
         };
       },
     }),
@@ -29,6 +29,7 @@ export const config = createConfig({
   transports: {
     [mainnet.id]: http(),
   },
+  ssr: true, // Enable SSR mode
 });
 
 // Extend window type for wallet providers

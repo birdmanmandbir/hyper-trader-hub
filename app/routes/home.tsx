@@ -1,6 +1,7 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import * as React from "react";
 import { json, redirect, type LoaderFunctionArgs } from "react-router";
-import { useLoaderData } from "react-router";
+import { useLoaderData, Form } from "react-router";
 import type { Route } from "./+types/home";
 import { BalanceDisplay } from "~/components/balance-display";
 import { getSessionUser, destroySession } from "~/lib/auth.server";
@@ -60,9 +61,12 @@ export async function action({ request }: LoaderFunctionArgs) {
 export default function Home() {
   const { userAddress, balance, settings } = useLoaderData<typeof loader>();
   const hlService = new HyperliquidService();
+  const disconnectFormRef = React.useRef<HTMLFormElement>(null);
   
-  // Update document title when balance changes
+  // Update document title when balance changes (client-side only)
   useEffect(() => {
+    if (typeof document === 'undefined') return; // Skip on server
+    
     if (balance) {
       const hasPositions = balance.perpetualPositions && balance.perpetualPositions.length > 0;
       
@@ -94,12 +98,7 @@ export default function Home() {
   }, [balance]);
   
   const handleDisconnect = () => {
-    // Submit form to disconnect
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.innerHTML = '<input name="action" value="disconnect" />';
-    document.body.appendChild(form);
-    form.submit();
+    disconnectFormRef.current?.submit();
   };
   
   return (
@@ -119,6 +118,11 @@ export default function Home() {
         onDisconnect={handleDisconnect}
         advancedSettings={settings?.advancedSettings ? JSON.parse(settings.advancedSettings) : undefined}
       />
+      
+      {/* Hidden form for disconnect action */}
+      <Form ref={disconnectFormRef} method="post" style={{ display: 'none' }}>
+        <input type="hidden" name="action" value="disconnect" />
+      </Form>
     </main>
   );
 }
