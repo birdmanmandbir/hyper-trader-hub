@@ -162,3 +162,7 @@ const [settings] = useLocalStorage<AdvancedSettings>(
   DEFAULT_ADVANCED_SETTINGS
 );
 ```
+
+## Database Notes
+- Never write migration SQL, let Drizzle Kit do it
+- **Never ask to run db-related commands, like db:generate, will do it manually**

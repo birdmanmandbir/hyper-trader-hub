@@ -56,6 +56,8 @@ export const dailyBalances = sqliteTable("daily_balances", {
   stakingValue: real("staking_value").default(0),
   dailyPnl: real("daily_pnl"),
   dailyPnlPercentage: real("daily_pnl_percentage"),
+  targetAchieved: integer("target_achieved").default(0), // boolean: 0 or 1
+  significantLoss: integer("significant_loss").default(0), // boolean: 0 or 1
   createdAt: integer("created_at").default(sql`(unixepoch())`),
   updatedAt: integer("updated_at").default(sql`(unixepoch())`),
 }, (table) => {
@@ -123,11 +125,17 @@ export const tradeHistory = sqliteTable("trade_history", {
 
 export const streakData = sqliteTable("streak_data", {
   userAddress: text("user_address").primaryKey(),
-  currentStreak: integer("current_streak").default(0),
-  bestStreak: integer("best_streak").default(0),
+  // Achievement streak (days meeting daily target)
+  currentAchievementStreak: integer("current_achievement_streak").default(0),
+  bestAchievementStreak: integer("best_achievement_streak").default(0),
+  // No significant loss streak (days without hitting loss threshold)
+  currentNoLossStreak: integer("current_no_loss_streak").default(0),
+  bestNoLossStreak: integer("best_no_loss_streak").default(0),
   lastUpdateDate: text("last_update_date").notNull(), // User's local date
   totalPositiveDays: integer("total_positive_days").default(0),
   totalNegativeDays: integer("total_negative_days").default(0),
+  totalTargetAchievedDays: integer("total_target_achieved_days").default(0),
+  totalSignificantLossDays: integer("total_significant_loss_days").default(0),
   updatedAt: integer("updated_at").default(sql`(unixepoch())`),
 });
 

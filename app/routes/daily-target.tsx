@@ -13,7 +13,9 @@ import { useHyperliquidService } from "~/providers/HyperliquidProvider";
 import { useAutoRefresh } from "~/hooks/useAutoRefresh";
 import { TradingTimeBar } from "~/components/TradingTimeBar";
 import { TradeCalculator } from "~/components/TradeCalculator";
+import { StreakDisplay } from "~/components/StreakDisplay";
 import { getUserDateString } from "~/lib/time-utils.server";
+import { getOrCreateStreakData } from "~/db/streak.server";
 import type { DailyTarget, AdvancedSettings } from "~/lib/types";
 import { DEFAULT_DAILY_TARGET, DEFAULT_ADVANCED_SETTINGS } from "~/lib/constants";
 
@@ -37,10 +39,11 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   // Get today's date for balance record
   const todayDate = getUserDateString(new Date(), timezoneOffset);
   
-  // Fetch balance data and today's balance in parallel
-  const [balanceData, todayBalance] = await Promise.all([
+  // Fetch balance data, today's balance, and streak data in parallel
+  const [balanceData, todayBalance, streakInfo] = await Promise.all([
     getBalanceData(context.cloudflare.env, userAddress, timezoneOffset),
-    getDailyBalance(db, userAddress, todayDate)
+    getDailyBalance(db, userAddress, todayDate),
+    getOrCreateStreakData(db, userAddress, todayDate)
   ]);
   
   const { balance, dailyStartBalance } = balanceData;
@@ -53,6 +56,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     dailyStartBalance,
     todayBalance,
     timezoneOffset,
+    streakData: streakInfo,
   };
 }
 
@@ -99,6 +103,7 @@ export default function DailyTarget() {
     balance,
     dailyStartBalance,
     todayBalance,
+    streakData,
   } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   
@@ -115,26 +120,26 @@ export default function DailyTarget() {
     }
   }, [actionData]);
   
-  const currentPerpsValue = balance?.perpsValue || 0;
-  const startOfDayPerpsValue = dailyStartBalance || currentPerpsValue;
+  const currentAccountValue = parseFloat(balance?.accountValue || "0");
+  const startOfDayAccountValue = dailyStartBalance || currentAccountValue;
   
   const calculateProfitPerTrade = () => {
-    if (startOfDayPerpsValue === 0 || tempTarget.minimumTrades === 0) return 0;
-    const dailyTargetAmount = startOfDayPerpsValue * (tempTarget.targetPercentage / 100);
+    if (startOfDayAccountValue === 0 || tempTarget.minimumTrades === 0) return 0;
+    const dailyTargetAmount = startOfDayAccountValue * (tempTarget.targetPercentage / 100);
     return dailyTargetAmount / tempTarget.minimumTrades;
   };
 
   const profitPerTrade = calculateProfitPerTrade();
   
   // Calculate progress
-  const dailyProfit = currentPerpsValue - startOfDayPerpsValue;
-  const dailyTargetAmount = startOfDayPerpsValue * (dailyTarget.targetPercentage / 100);
+  const dailyProfit = currentAccountValue - startOfDayAccountValue;
+  const dailyTargetAmount = startOfDayAccountValue * (dailyTarget.targetPercentage / 100);
   const progressPercentage = dailyTargetAmount > 0 ? (dailyProfit / dailyTargetAmount) * 100 : 0;
   const isTargetAchieved = progressPercentage >= 100;
   
   // Check if loss threshold is hit
-  const lossThresholdHit = progressPercentage < -(advancedSettings.lossThreshold);
-  const actualLossPercentage = (dailyProfit / startOfDayPerpsValue) * 100;
+  const actualLossPercentage = startOfDayAccountValue > 0 ? (dailyProfit / startOfDayAccountValue) * 100 : 0;
+  const lossThresholdHit = actualLossPercentage < -(advancedSettings.lossThreshold);
 
   return (
     <div className="container mx-auto p-6">
@@ -150,7 +155,7 @@ export default function DailyTarget() {
             walletAddress={userAddress} 
             dailyTarget={dailyTarget}
             advancedSettings={advancedSettings}
-            startOfDayPerpsValue={startOfDayPerpsValue}
+            startOfDayPerpsValue={startOfDayAccountValue}
             balance={balance}
           />
 
@@ -311,11 +316,11 @@ export default function DailyTarget() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div className="p-2 bg-muted rounded">
                       <p className="text-muted-foreground">Start Balance</p>
-                      <p className="font-semibold">{hlService.formatUsdValue(startOfDayPerpsValue)}</p>
+                      <p className="font-semibold">{hlService.formatUsdValue(startOfDayAccountValue)}</p>
                     </div>
                     <div className="p-2 bg-muted rounded">
                       <p className="text-muted-foreground">Current Balance</p>
-                      <p className="font-semibold">{hlService.formatUsdValue(currentPerpsValue)}</p>
+                      <p className="font-semibold">{hlService.formatUsdValue(currentAccountValue)}</p>
                     </div>
                     <div className="p-2 bg-muted rounded">
                       <p className="text-muted-foreground">Daily P&L</p>
@@ -340,6 +345,13 @@ export default function DailyTarget() {
               </CardContent>
             </Card>
           )}
+
+          {/* Trading Streaks */}
+          <StreakDisplay 
+            streakData={streakData}
+            isTargetAchieved={isTargetAchieved}
+            hasSignificantLoss={lossThresholdHit}
+          />
 
           {/* Trading Time Indicator */}
           {advancedSettings.preferredTimes.length > 0 || advancedSettings.avoidedTimes.length > 0 ? (
