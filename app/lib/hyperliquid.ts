@@ -45,6 +45,8 @@ export interface BalanceInfo {
     marginUsed: string;
     leverage: number;
     leverageType: string;
+    liquidationPx?: string;
+    maintMarginReq?: string;
   }>;
   staking?: StakingInfo;
   orders?: Order[];
@@ -91,6 +93,8 @@ export class HyperliquidService {
           marginUsed: pos.position.marginUsed || "0",
           leverage: pos.position.leverage?.value || 0,
           leverageType: pos.position.leverage?.type || "cross",
+          liquidationPx: pos.position.liquidationPx || "0",
+          maintMarginReq: pos.position.maintMarginReq || "0.0625",
         }));
 
       // Format spot balances

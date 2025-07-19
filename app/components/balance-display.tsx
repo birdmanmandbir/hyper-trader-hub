@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { HyperliquidService, type BalanceInfo } from "~/lib/hyperliquid";
-import { PositionOrderChart } from "~/components/PositionOrderChart";
+import { PositionCard } from "~/components/PositionCard";
 import { useLocalStorage } from "~/hooks/useLocalStorage";
 import { DEFAULT_ADVANCED_SETTINGS, STORAGE_KEYS } from "~/lib/constants";
 import type { AdvancedSettings } from "~/lib/types";
@@ -291,48 +291,14 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
               })()}
               
               {balances.perpetualPositions.map((position, index) => (
-                <div key={index} className="p-3 bg-muted rounded-lg">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <p className="font-semibold">{position.coin}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Size: {position.szi} @ {hlService.formatUsdValue(position.entryPx)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex justify-between items-center text-sm">
-                    <div className="flex items-center gap-4">
-                      <span className="text-muted-foreground">
-                        Margin: <span className="font-medium text-foreground">{hlService.formatUsdValue(position.marginUsed || "0")}</span>
-                      </span>
-                      <span className="text-muted-foreground">
-                        Leverage: <span className="font-medium text-foreground">{(position.leverage || 0).toFixed(2)}x ({position.leverageType || "cross"})</span>
-                      </span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {parseFloat(balances.accountValue) > 0 && position.marginUsed && (
-                        <span>
-                          {((parseFloat(position.marginUsed) / parseFloat(balances.accountValue)) * 100).toFixed(1)}% of account
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  
-                  {/* Position Order Chart */}
-                  {balances.orders && (
-                    <div className="mt-3 pt-3 border-t">
-                      <PositionOrderChart
-                        coin={position.coin}
-                        entryPrice={position.entryPx}
-                        side={position.szi}
-                        orders={balances.orders}
-                        positionSize={position.marginUsed}
-                        takerFee={advancedSettings.takerFee}
-                        makerFee={advancedSettings.makerFee}
-                      />
-                    </div>
-                  )}
-                </div>
+                <PositionCard
+                  key={index}
+                  position={position}
+                  orders={balances.orders}
+                  takerFee={advancedSettings.takerFee}
+                  makerFee={advancedSettings.makerFee}
+                  accountValue={balances.accountValue}
+                />
               ))}
             </div>
           </CardContent>
