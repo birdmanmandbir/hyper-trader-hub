@@ -1,24 +1,26 @@
 import * as React from "react";
-import { useHyperliquidWebSocket } from "./useHyperliquidWebSocket";
+import { usePrices } from "~/providers/PriceProvider";
 import { formatPrice } from "~/lib/price-decimals";
 
 export function useLivePrice(coin: string) {
-  const [price, setPrice] = React.useState<string>("");
+  const { prices, subscribe, unsubscribe } = usePrices();
   
-  const handlePriceUpdate = React.useCallback((mids: Record<string, string>) => {
-    if (coin && mids[coin]) {
-      const midPrice = mids[coin];
-      // Format price based on value
-      const priceNum = parseFloat(midPrice);
-      const formattedPrice = formatPrice(priceNum);
-      setPrice(formattedPrice);
-    }
-  }, [coin]);
+  React.useEffect(() => {
+    if (!coin) return;
+    
+    subscribe([coin]);
+    
+    return () => {
+      unsubscribe([coin]);
+    };
+  }, [coin, subscribe, unsubscribe]);
   
-  const { isConnected, error } = useHyperliquidWebSocket({
-    enabled: !!coin,
-    onPriceUpdate: handlePriceUpdate
-  });
+  // Format price if available
+  const price = React.useMemo(() => {
+    if (!coin || !prices[coin]) return "";
+    const priceNum = parseFloat(prices[coin]);
+    return formatPrice(priceNum);
+  }, [coin, prices]);
   
-  return { price, isConnected, error };
+  return { price, isConnected: true, error: null };
 }

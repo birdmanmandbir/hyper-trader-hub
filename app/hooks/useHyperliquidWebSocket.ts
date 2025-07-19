@@ -7,7 +7,7 @@ interface AllMidsData {
 
 interface UseHyperliquidWebSocketOptions {
   enabled?: boolean;
-  onPriceUpdate?: (mids: Record<string, string>) => void;
+  onPriceUpdate?: (coin: string, price: string) => void;
 }
 
 export function useHyperliquidWebSocket({ 
@@ -48,7 +48,9 @@ export function useHyperliquidWebSocket({
           
           // Call the price update handler if provided
           if (onPriceUpdate && event.mids) {
-            onPriceUpdate(event.mids);
+            Object.entries(event.mids).forEach(([coin, price]) => {
+              onPriceUpdate(coin, price);
+            });
           }
         });
         
@@ -96,5 +98,15 @@ export function useHyperliquidWebSocket({
     };
   }, [enabled, onPriceUpdate]);
   
-  return { isConnected, error };
+  // Subscribe and unsubscribe functions for specific coins
+  // These are no-ops since we subscribe to all mids
+  const subscribe = React.useCallback((coins: string[]) => {
+    // No-op: we subscribe to all mids
+  }, []);
+  
+  const unsubscribe = React.useCallback((coins: string[]) => {
+    // No-op: we subscribe to all mids
+  }, []);
+  
+  return { isConnected, error, subscribe, unsubscribe };
 }

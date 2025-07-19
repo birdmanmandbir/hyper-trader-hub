@@ -133,6 +133,19 @@ body {
   }
 }
 
+/* Navigation styles */
+.nav-link {
+  @apply hover:bg-accent hover:text-accent-foreground;
+}
+
+.nav-link.active {
+  @apply bg-black text-white dark:bg-white dark:text-black;
+}
+
+.nav-link.active:hover {
+  @apply bg-black/90 text-white dark:bg-white/90 dark:text-black;
+}
+
 /* Sonner toast custom styles */
 [data-sonner-toast] [data-icon] {
   color: black !important;

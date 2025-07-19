@@ -1,16 +1,8 @@
 import { NavLink } from "react-router";
-import {
-  NavigationMenu,
-  NavigationMenuItem,
-  NavigationMenuLink,
-  NavigationMenuList,
-  navigationMenuTriggerStyle,
-} from "~/components/ui/navigation-menu";
-import { cn } from "~/lib/utils";
 
 export function Navigation() {
   const navItems = [
-    { path: "/", label: "Overview" },
+    { path: "/", label: "Overview", end: true },
     { path: "/daily-target", label: "Daily Target" },
     { path: "/checklist", label: "Checklist" },
     { path: "/tips", label: "Trading Tips" },
@@ -24,50 +16,37 @@ export function Navigation() {
           <div className="flex items-center space-x-8">
             <h1 className="text-xl font-bold">Hyper Trader Hub</h1>
             
-            <NavigationMenu className="hidden md:block">
-              <NavigationMenuList>
-                {navItems.map((item) => (
-                  <NavigationMenuItem key={item.path}>
-                    <NavLink to={item.path}>
-                      {({ isActive }) => (
-                        <NavigationMenuLink
-                          className={cn(
-                            navigationMenuTriggerStyle(),
-                            isActive && "bg-black text-white hover:bg-black hover:text-white dark:bg-white dark:text-black dark:hover:bg-white dark:hover:text-black"
-                          )}
-                        >
-                          {item.label}
-                        </NavigationMenuLink>
-                      )}
-                    </NavLink>
-                  </NavigationMenuItem>
-                ))}
-              </NavigationMenuList>
-            </NavigationMenu>
+            {/* Desktop Navigation */}
+            <div className="hidden md:flex items-center space-x-1">
+              {navItems.map((item) => (
+                <NavLink
+                  key={item.path}
+                  to={item.path}
+                  end={item.end}
+                  className="nav-link px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                >
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
           </div>
         </div>
 
-        <NavigationMenu className="md:hidden pb-2">
-          <NavigationMenuList className="flex-col w-full">
+        {/* Mobile Navigation */}
+        <div className="md:hidden pb-2">
+          <div className="flex flex-col space-y-1">
             {navItems.map((item) => (
-              <NavigationMenuItem key={item.path} className="w-full">
-                <NavLink to={item.path} className="w-full">
-                  {({ isActive }) => (
-                    <NavigationMenuLink
-                      className={cn(
-                        navigationMenuTriggerStyle(),
-                        "w-full justify-start",
-                        isActive && "bg-black text-white hover:bg-black hover:text-white dark:bg-white dark:text-black dark:hover:bg-white dark:hover:text-black"
-                      )}
-                    >
-                      {item.label}
-                    </NavigationMenuLink>
-                  )}
-                </NavLink>
-              </NavigationMenuItem>
+              <NavLink
+                key={item.path}
+                to={item.path}
+                end={item.end}
+                className="nav-link px-3 py-2 rounded-md text-sm font-medium transition-colors"
+              >
+                {item.label}
+              </NavLink>
             ))}
-          </NavigationMenuList>
-        </NavigationMenu>
+          </div>
+        </div>
       </div>
     </nav>
   );

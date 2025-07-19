@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useHyperliquidWebSocket } from "./useHyperliquidWebSocket";
+import { usePrices } from "~/providers/PriceProvider";
 
 interface Position {
   coin: string;
@@ -9,7 +9,7 @@ interface Position {
 }
 
 export function useRealtimePnL(positions: Position[]) {
-  const [prices, setPrices] = React.useState<Record<string, string>>({});
+  const { prices, subscribe, unsubscribe } = usePrices();
   
   // Get unique coins from positions
   const coins = React.useMemo(
@@ -17,22 +17,15 @@ export function useRealtimePnL(positions: Position[]) {
     [positions]
   );
   
-  const handlePriceUpdate = React.useCallback((mids: Record<string, string>) => {
-    // Update prices for our coins
-    const updatedPrices: Record<string, string> = {};
-    coins.forEach(coin => {
-      if (mids[coin]) {
-        updatedPrices[coin] = mids[coin];
-      }
-    });
+  React.useEffect(() => {
+    if (coins.length === 0) return;
     
-    setPrices(prev => ({ ...prev, ...updatedPrices }));
-  }, [coins]);
-  
-  const { isConnected } = useHyperliquidWebSocket({
-    enabled: coins.length > 0,
-    onPriceUpdate: handlePriceUpdate
-  });
+    subscribe(coins);
+    
+    return () => {
+      unsubscribe(coins);
+    };
+  }, [coins, subscribe, unsubscribe]);
 
   // Calculate P&L
   const { totalPnL, positionPnLs } = React.useMemo(() => {
@@ -63,5 +56,5 @@ export function useRealtimePnL(positions: Position[]) {
     return { totalPnL: total, positionPnLs: newPnLs };
   }, [positions, prices]);
   
-  return { totalPnL, positionPnLs, isConnected };
+  return { totalPnL, positionPnLs, isConnected: true };
 }
