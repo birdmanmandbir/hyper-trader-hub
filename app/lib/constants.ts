@@ -28,19 +28,6 @@ export const DEFAULT_DAILY_TARGET: DailyTarget = {
   fixedSLPercentage: 2,
 };
 
-// Common localStorage keys
-export const STORAGE_KEYS = {
-  WALLET_ADDRESS: "hyperliquid-wallet",
-  DAILY_TARGET: "dailyTarget",
-  ADVANCED_SETTINGS: "advancedSettings",
-  BALANCE_DATA: "balance-data",
-  DAILY_START_BALANCE: "daily-start-balance",
-  ENTRY_CHECKLIST: "trading-entry-checklist",
-  EXIT_CHECKLIST: "trading-exit-checklist",
-  DEFAULT_COIN: "defaultTradingCoin",
-  STREAK_DATA: "streakData",
-} as const;
-
 // Popular cryptocurrencies for trading
 import { getCryptoList } from "./crypto-config";
 

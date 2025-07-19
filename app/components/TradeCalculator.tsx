@@ -5,23 +5,22 @@ import { Switch } from "~/components/ui/switch";
 import { Input } from "~/components/ui/input";
 import { CryptoCombobox } from "~/components/CryptoCombobox";
 import { HyperliquidService } from "~/lib/hyperliquid";
-import { useBalanceUpdater } from "~/hooks/useBalanceUpdater";
 import { useLivePrice } from "~/hooks/useLivePrice";
 import { Copy, Calculator } from "lucide-react";
 import { formatPrice, getPriceDecimals } from "~/lib/price-decimals";
 import { toast } from "sonner";
-import type { DailyTarget, AdvancedSettings } from "~/lib/types";
+import type { DailyTarget, AdvancedSettings, BalanceInfo } from "~/lib/types";
 
 interface TradeCalculatorProps {
   walletAddress: string | null;
   dailyTarget: DailyTarget;
   advancedSettings: AdvancedSettings;
   startOfDayPerpsValue: number;
+  balance: BalanceInfo | null;
 }
 
-export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, startOfDayPerpsValue }: TradeCalculatorProps) {
+export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, startOfDayPerpsValue, balance }: TradeCalculatorProps) {
   const hlService = new HyperliquidService();
-  const { balance } = useBalanceUpdater(walletAddress);
   
   const [isLong, setIsLong] = React.useState(true);
   const [selectedCoin, setSelectedCoin] = React.useState<string>("");

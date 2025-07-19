@@ -8,13 +8,7 @@ import {
 } from "~/components/ui/navigation-menu";
 import { cn } from "~/lib/utils";
 
-interface NavigationProps {
-  nextUpdateIn?: number;
-  isUpdating?: boolean;
-  isConnected?: boolean;
-}
-
-export function Navigation({ nextUpdateIn, isUpdating, isConnected }: NavigationProps) {
+export function Navigation() {
   const navItems = [
     { path: "/", label: "Overview" },
     { path: "/daily-target", label: "Daily Target" },
@@ -51,16 +45,6 @@ export function Navigation({ nextUpdateIn, isUpdating, isConnected }: Navigation
               </NavigationMenuList>
             </NavigationMenu>
           </div>
-
-          {isConnected && nextUpdateIn !== undefined && (
-            <div className="text-sm text-muted-foreground">
-              {isUpdating ? (
-                <span className="text-primary">Updating...</span>
-              ) : (
-                <span>Next update in: {nextUpdateIn}s</span>
-              )}
-            </div>
-          )}
         </div>
 
         <NavigationMenu className="md:hidden pb-2">

@@ -7,7 +7,8 @@
       "Bash(bun add:*)",
       "Bash(git add:*)",
       "Bash(grep:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "WebFetch(domain:bundlephobia.com)"
     ],
     "deny": []
   }

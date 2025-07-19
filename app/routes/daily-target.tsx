@@ -1,48 +1,107 @@
 import * as React from "react";
-import { Link } from "react-router";
+import { json, redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
+import { useLoaderData, Link, Form } from "react-router";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
-import { useLocalStorage } from "~/hooks/useLocalStorage";
-import { useBalanceUpdater } from "~/hooks/useBalanceUpdater";
-import { useStreakTracking } from "~/hooks/useStreakTracking";
+import { requireAuth } from "~/lib/auth.server";
+import { getBalanceData } from "~/services/balance.server";
+import { getUserSettings, upsertUserSettings, getDailyBalance } from "~/db/client.server";
+import { getDb } from "~/db/client.server";
 import { HyperliquidService } from "~/lib/hyperliquid";
 import { TradingTimeBar } from "~/components/TradingTimeBar";
 import { TradeCalculator } from "~/components/TradeCalculator";
+import { getUserDateString } from "~/lib/time-utils.server";
 import type { DailyTarget, AdvancedSettings } from "~/lib/types";
-import { DEFAULT_DAILY_TARGET, DEFAULT_ADVANCED_SETTINGS, STORAGE_KEYS } from "~/lib/constants";
+import { DEFAULT_DAILY_TARGET, DEFAULT_ADVANCED_SETTINGS } from "~/lib/constants";
+
+export async function loader({ request, context }: LoaderFunctionArgs) {
+  const userAddress = await requireAuth(request, context.env);
+  const db = getDb(context.env);
+  
+  // Get user settings
+  const settings = await getUserSettings(db, userAddress);
+  const timezoneOffset = settings?.timezoneOffset || 0;
+  
+  // Parse settings or use defaults
+  const dailyTarget = settings?.dailyTarget 
+    ? JSON.parse(settings.dailyTarget) as DailyTarget
+    : DEFAULT_DAILY_TARGET;
+    
+  const advancedSettings = settings?.advancedSettings
+    ? JSON.parse(settings.advancedSettings) as AdvancedSettings
+    : DEFAULT_ADVANCED_SETTINGS;
+  
+  // Get balance data
+  const { balance, dailyStartBalance } = await getBalanceData(
+    context.env,
+    userAddress,
+    timezoneOffset
+  );
+  
+  // Get today's balance record for streak tracking
+  const todayDate = getUserDateString(new Date(), timezoneOffset);
+  const todayBalance = await getDailyBalance(db, userAddress, todayDate);
+  
+  return json({
+    userAddress,
+    dailyTarget,
+    advancedSettings,
+    balance,
+    dailyStartBalance,
+    todayBalance,
+    timezoneOffset,
+  });
+}
+
+export async function action({ request, context }: ActionFunctionArgs) {
+  const userAddress = await requireAuth(request, context.env);
+  const db = getDb(context.env);
+  const formData = await request.formData();
+  
+  const targetPercentage = parseFloat(formData.get("targetPercentage") as string);
+  const minimumTrades = parseInt(formData.get("minimumTrades") as string);
+  const fixedSLPercentage = parseFloat(formData.get("fixedSLPercentage") as string);
+  const fixedLeverageRatio = parseFloat(formData.get("fixedLeverageRatio") as string);
+  
+  const dailyTarget: DailyTarget = {
+    targetPercentage,
+    minimumTrades,
+    fixedSLPercentage,
+    fixedLeverageRatio,
+  };
+  
+  // Get existing settings to preserve advanced settings
+  const existingSettings = await getUserSettings(db, userAddress);
+  const advancedSettings = existingSettings?.advancedSettings || JSON.stringify(DEFAULT_ADVANCED_SETTINGS);
+  
+  // Save to D1
+  await upsertUserSettings(db, {
+    userAddress,
+    dailyTarget: JSON.stringify(dailyTarget),
+    advancedSettings,
+    timezoneOffset: existingSettings?.timezoneOffset || 0,
+  });
+  
+  return json({ success: true });
+}
 
 export default function DailyTarget() {
-  const [target, setTarget] = useLocalStorage<DailyTarget>(
-    STORAGE_KEYS.DAILY_TARGET,
-    DEFAULT_DAILY_TARGET
-  );
-  const [walletAddress] = useLocalStorage<string | null>(STORAGE_KEYS.WALLET_ADDRESS, null);
-  const [advancedSettings] = useLocalStorage<AdvancedSettings>(
-    STORAGE_KEYS.ADVANCED_SETTINGS,
-    DEFAULT_ADVANCED_SETTINGS
-  );
-  const [tempTarget, setTempTarget] = React.useState(target);
-  const hlService = new HyperliquidService();
-  const { balance, dailyStartBalance } = useBalanceUpdater(walletAddress);
   const { 
-    achievementStreak,
-    noLossStreak,
-    todayStatus,
-    updateDailyProgress,
-    resetStreak
-  } = useStreakTracking();
-
-  const handleSave = () => {
-    setTarget(tempTarget);
-    toast.success("Daily target saved successfully!", {
-      description: `Target: ${tempTarget.targetPercentage}% with ${tempTarget.minimumTrades} trades`
-    });
-  };
-
+    userAddress,
+    dailyTarget,
+    advancedSettings,
+    balance,
+    dailyStartBalance,
+    todayBalance,
+  } = useLoaderData<typeof loader>();
+  
+  const [tempTarget, setTempTarget] = React.useState(dailyTarget);
+  const hlService = new HyperliquidService();
+  
   const currentPerpsValue = balance?.perpsValue || 0;
-  const startOfDayPerpsValue = dailyStartBalance?.perpsValue || dailyStartBalance?.accountValue || currentPerpsValue; // Fallback to accountValue for backward compatibility
+  const startOfDayPerpsValue = dailyStartBalance || currentPerpsValue;
   
   const calculateProfitPerTrade = () => {
     if (startOfDayPerpsValue === 0 || tempTarget.minimumTrades === 0) return 0;
@@ -54,20 +113,13 @@ export default function DailyTarget() {
   
   // Calculate progress
   const dailyProfit = currentPerpsValue - startOfDayPerpsValue;
-  const dailyTargetAmount = startOfDayPerpsValue * (target.targetPercentage / 100);
+  const dailyTargetAmount = startOfDayPerpsValue * (dailyTarget.targetPercentage / 100);
   const progressPercentage = dailyTargetAmount > 0 ? (dailyProfit / dailyTargetAmount) * 100 : 0;
   const isTargetAchieved = progressPercentage >= 100;
   
   // Check if loss threshold is hit
   const lossThresholdHit = progressPercentage < -(advancedSettings.lossThreshold);
   const actualLossPercentage = (dailyProfit / startOfDayPerpsValue) * 100;
-
-  // Update streak tracking
-  React.useEffect(() => {
-    if (balance && dailyStartBalance) {
-      updateDailyProgress(progressPercentage);
-    }
-  }, [progressPercentage, balance, dailyStartBalance]);
 
   return (
     <div className="container mx-auto p-6">
@@ -80,10 +132,11 @@ export default function DailyTarget() {
         <div className="space-y-6">
           {/* Trade Calculator with Position Sizing - at the top for frequent use */}
           <TradeCalculator 
-            walletAddress={walletAddress} 
-            dailyTarget={target}
+            walletAddress={userAddress} 
+            dailyTarget={dailyTarget}
             advancedSettings={advancedSettings}
             startOfDayPerpsValue={startOfDayPerpsValue}
+            balance={balance}
           />
 
           {/* Loss Threshold Warning */}
@@ -98,138 +151,118 @@ export default function DailyTarget() {
               <CardContent>
                 <div className="space-y-3">
                   <div className="p-3 bg-red-100 dark:bg-red-900/40 rounded-lg">
-                    <p className="text-sm font-semibold text-red-800 dark:text-red-300">
-                      Current Loss: {actualLossPercentage.toFixed(2)}% ({hlService.formatUsdValue(dailyProfit)})
+                    <p className="font-semibold text-red-800 dark:text-red-300">
+                      Current Loss: {hlService.formatUsdValue(dailyProfit)} ({actualLossPercentage.toFixed(2)}%)
                     </p>
-                    <p className="text-xs text-red-700 dark:text-red-400 mt-1">
-                      You've exceeded your loss threshold of {advancedSettings.lossThreshold}% of daily target
+                    <p className="text-sm mt-1 text-red-700 dark:text-red-400">
+                      You've exceeded your {advancedSettings.lossThreshold}% loss threshold
                     </p>
                   </div>
-                  
-                  <div className="space-y-2">
-                    <p className="text-sm font-semibold text-red-700 dark:text-red-400">
-                      🧘 Time to Take a Break
-                    </p>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                      Significant losses can affect your judgment and emotional state. We strongly recommend:
-                    </p>
-                    <ul className="text-sm space-y-1 ml-4 text-gray-700 dark:text-gray-300">
-                      <li>• Step away from trading for today</li>
-                      <li>• Take time to relax and clear your mind</li>
-                      <li>• Review your trades when you're calm</li>
-                      <li>• Return tomorrow with a fresh perspective</li>
+                  <div className="text-sm space-y-2 text-red-700 dark:text-red-400">
+                    <p className="font-medium">⚡ Recommended Actions:</p>
+                    <ul className="list-disc list-inside space-y-1 ml-2">
+                      <li>Stop trading for the day to prevent further losses</li>
+                      <li>Review your trades and identify what went wrong</li>
+                      <li>Consider reducing position sizes tomorrow</li>
+                      <li>Take a break and come back with a clear mind</li>
                     </ul>
-                  </div>
-                  
-                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
-                    <p className="text-xs text-amber-800 dark:text-amber-200">
-                      <strong>Remember:</strong> Forcing trades to recover losses often leads to even bigger losses. 
-                      The market will be here tomorrow. Protect your capital and mental well-being.
-                    </p>
                   </div>
                 </div>
               </CardContent>
             </Card>
           )}
-
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Set Your Daily Trading Goals</CardTitle>
-              <CardDescription>
-                Configure your daily profit target and minimum trades to calculate required profit per trade
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div>
-                  <label className="text-sm font-medium">Daily Target (%)</label>
-                  <Input
-                    type="number"
-                    value={tempTarget.targetPercentage}
-                    onChange={(e) => setTempTarget({ ...tempTarget, targetPercentage: parseFloat(e.target.value) || 0 })}
-                    placeholder="10"
-                    min="0"
-                    step="0.1"
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Percentage of perps account value to earn daily
-                  </p>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium">Minimum Trades</label>
-                  <Input
-                    type="number"
-                    value={tempTarget.minimumTrades}
-                    onChange={(e) => setTempTarget({ ...tempTarget, minimumTrades: parseInt(e.target.value) || 0 })}
-                    placeholder="2"
-                    min="1"
-                    step="1"
-                  />
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Number of trades to achieve the target
-                  </p>
-                </div>
-
-                <div className="pt-4 border-t">
-                  <h4 className="text-sm font-semibold mb-3">Fixed Trading Parameters (Optional)</h4>
-                  
-                  <div className="space-y-4">
-                    <div>
-                      <label className="text-sm font-medium">Fixed Leverage Ratio (%)</label>
-                      <Input
-                        type="number"
-                        value={tempTarget.fixedLeverageRatio || ''}
-                        onChange={(e) => setTempTarget({ ...tempTarget, fixedLeverageRatio: e.target.value ? parseFloat(e.target.value) : undefined })}
-                        placeholder="25"
-                        min="1"
-                        max="100"
-                        step="1"
-                      />
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Use a fixed percentage of max leverage (e.g., 25% of 20x = 5x)
-                      </p>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium">Fixed Stop Loss (%)</label>
-                      <Input
-                        type="number"
-                        value={tempTarget.fixedSLPercentage || ''}
-                        onChange={(e) => setTempTarget({ ...tempTarget, fixedSLPercentage: e.target.value ? parseFloat(e.target.value) : undefined })}
-                        placeholder="2"
-                        min="0.1"
-                        max="10"
-                        step="0.1"
-                      />
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Maximum loss per trade as % of account (e.g., 2% of total account)
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <Button onClick={handleSave} className="w-full">
-                  Save Target
-                </Button>
-              </div>
-
-              {!walletAddress && (
-                <div className="text-center py-4 text-muted-foreground">
-                  <p>Please connect your wallet first to see target calculations</p>
-                  <Link to="/">
-                    <Button variant="outline" className="mt-2">Go to Overview</Button>
-                  </Link>
-                </div>
-              )}
-            </CardContent>
-          </Card>
         </div>
 
-        {/* Right Column - Today's Progress, Target Breakdown and Trading Calculations */}
+        {/* Right Column - Progress and Settings */}
         <div className="space-y-6">
-          {/* Daily Progress Card - moved from left column */}
+          {/* Target Settings Form */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Trading Parameters</CardTitle>
+              <CardDescription>
+                Set your daily profit target and risk management rules
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Form method="post" className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <label htmlFor="targetPercentage" className="text-sm font-medium">
+                      Daily Target %
+                    </label>
+                    <Input
+                      id="targetPercentage"
+                      name="targetPercentage"
+                      type="number"
+                      value={tempTarget.targetPercentage}
+                      onChange={(e) => setTempTarget({ ...tempTarget, targetPercentage: parseFloat(e.target.value) })}
+                      step="0.1"
+                      min="0"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="minimumTrades" className="text-sm font-medium">
+                      Minimum Trades
+                    </label>
+                    <Input
+                      id="minimumTrades"
+                      name="minimumTrades"
+                      type="number"
+                      value={tempTarget.minimumTrades}
+                      onChange={(e) => setTempTarget({ ...tempTarget, minimumTrades: parseInt(e.target.value) })}
+                      min="1"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="fixedSLPercentage" className="text-sm font-medium">
+                      Fixed SL % (of Account)
+                    </label>
+                    <Input
+                      id="fixedSLPercentage"
+                      name="fixedSLPercentage"
+                      type="number"
+                      value={tempTarget.fixedSLPercentage || 2}
+                      onChange={(e) => setTempTarget({ ...tempTarget, fixedSLPercentage: parseFloat(e.target.value) })}
+                      step="0.1"
+                      min="0.1"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="fixedLeverageRatio" className="text-sm font-medium">
+                      Leverage Usage %
+                    </label>
+                    <Input
+                      id="fixedLeverageRatio"
+                      name="fixedLeverageRatio"
+                      type="number"
+                      value={tempTarget.fixedLeverageRatio || 10}
+                      onChange={(e) => setTempTarget({ ...tempTarget, fixedLeverageRatio: parseFloat(e.target.value) })}
+                      step="1"
+                      min="1"
+                      max="100"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4 p-3 bg-muted rounded-lg text-sm">
+                  <div>
+                    <p className="text-muted-foreground">Target per trade</p>
+                    <p className="font-semibold">{hlService.formatUsdValue(profitPerTrade)}</p>
+                  </div>
+                  <div>
+                    <p className="text-muted-foreground">Daily target amount</p>
+                    <p className="font-semibold">{hlService.formatUsdValue(dailyTargetAmount)}</p>
+                  </div>
+                </div>
+                
+                <Button type="submit" className="w-full">
+                  Save Target
+                </Button>
+              </Form>
+            </CardContent>
+          </Card>
+
+          {/* Today's Progress */}
           {balance && dailyStartBalance && (
             <Card>
               <CardHeader>
@@ -244,72 +277,47 @@ export default function DailyTarget() {
               <CardContent>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Progress</span>
-                      <span className={dailyProfit >= 0 ? (isTargetAchieved ? "text-green-600 font-semibold" : "") : "text-red-600 font-semibold"}>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Progress</span>
+                      <span className={`text-sm font-semibold ${progressPercentage >= 100 ? 'text-green-600' : progressPercentage > 0 ? 'text-blue-600' : 'text-red-600'}`}>
                         {progressPercentage.toFixed(1)}%
                       </span>
                     </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700 relative overflow-hidden">
-                      {progressPercentage >= 0 ? (
-                        progressPercentage > 100 ? (
-                          <div 
-                            className="h-3 rounded-full transition-all duration-500"
-                            style={{ 
-                              width: '100%',
-                              background: `linear-gradient(90deg, 
-                                #10b981 0%, 
-                                #3b82f6 25%, 
-                                #8b5cf6 50%, 
-                                #ec4899 75%, 
-                                #f59e0b 100%)`
-                            }}
-                          />
-                        ) : (
-                          <div 
-                            className={`h-3 rounded-full transition-all duration-500 ${
-                              isTargetAchieved ? 'bg-green-600' : 'bg-blue-600'
-                            }`}
-                            style={{ width: `${progressPercentage}%` }}
-                          />
-                        )
-                      ) : (
-                        <div 
-                          className="h-3 bg-red-600 rounded-full transition-all duration-500"
-                          style={{ width: `${Math.min(Math.abs(progressPercentage), 100)}%` }}
-                        />
-                      )}
+                    <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700">
+                      <div 
+                        className={`h-3 rounded-full transition-all duration-500 ${
+                          progressPercentage >= 100 ? 'bg-green-600' : progressPercentage > 0 ? 'bg-blue-600' : 'bg-red-600'
+                        }`}
+                        style={{ width: `${Math.min(Math.max(progressPercentage, 0), 100)}%` }}
+                      />
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Start of Day (Perps)</p>
+                  
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="p-2 bg-muted rounded">
+                      <p className="text-muted-foreground">Start Balance</p>
                       <p className="font-semibold">{hlService.formatUsdValue(startOfDayPerpsValue)}</p>
                     </div>
-                    <div className="space-y-1">
-                      <p className="text-muted-foreground">Current Value (Perps)</p>
+                    <div className="p-2 bg-muted rounded">
+                      <p className="text-muted-foreground">Current Balance</p>
                       <p className="font-semibold">{hlService.formatUsdValue(currentPerpsValue)}</p>
                     </div>
-                    <div className="space-y-1">
+                    <div className="p-2 bg-muted rounded">
                       <p className="text-muted-foreground">Daily P&L</p>
                       <p className={`font-semibold ${dailyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {dailyProfit >= 0 ? '+' : ''}{hlService.formatUsdValue(dailyProfit)}
-                        <span className="text-sm ml-1">
-                          ({dailyProfit >= 0 ? '+' : ''}{((dailyProfit / startOfDayPerpsValue) * 100).toFixed(2)}%)
-                        </span>
                       </p>
                     </div>
-                    <div className="space-y-1">
+                    <div className="p-2 bg-muted rounded">
                       <p className="text-muted-foreground">Target</p>
                       <p className="font-semibold">{hlService.formatUsdValue(dailyTargetAmount)}</p>
                     </div>
                   </div>
-
+                  
                   {isTargetAchieved && (
-                    <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                      <p className="text-green-600 dark:text-green-400 font-semibold">
-                        🎉 Congratulations! Daily target achieved!
+                    <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
+                      <p className="text-sm text-green-800 dark:text-green-200 font-medium">
+                        🎉 Congratulations! You've hit your daily target!
                       </p>
                     </div>
                   )}
@@ -318,135 +326,24 @@ export default function DailyTarget() {
             </Card>
           )}
 
-          {/* Achievement Streak Card - moved to right column */}
-          {balance && dailyStartBalance && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between">
-                  <span className="text-lg">Achievement Streak</span>
-                  <span className="text-2xl">{achievementStreak.getEmoji(achievementStreak.unconfirmed)}</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-3xl font-bold">{achievementStreak.unconfirmed} days</p>
-                    <p className="text-sm text-muted-foreground">
-                      {achievementStreak.unconfirmed > achievementStreak.current ? 'Potential streak (confirm tomorrow)' : `Confirmed: ${achievementStreak.current} days`}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-semibold text-muted-foreground">{achievementStreak.longest} days</p>
-                    <p className="text-sm text-muted-foreground">Best streak</p>
-                  </div>
-                </div>
-                {!todayStatus.currentlyAboveThreshold && (
-                  <div className="mt-3 p-2 bg-amber-50 dark:bg-amber-900/20 rounded text-xs text-amber-800 dark:text-amber-200">
-                    ⚠️ Reach {achievementStreak.threshold}% of your target to qualify for today's streak!
-                  </div>
-                )}
-                {todayStatus.currentlyAboveThreshold && todayStatus.droppedBelowThreshold && (
-                  <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-xs text-blue-800 dark:text-blue-200">
-                    ℹ️ You dropped below {achievementStreak.threshold}% earlier but recovered - finish above {achievementStreak.threshold}% to maintain streak!
-                  </div>
-                )}
-                {todayStatus.currentlyAboveThreshold && !todayStatus.droppedBelowThreshold && (
-                  <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded text-xs text-green-800 dark:text-green-200">
-                    ✅ Great job! Stay above {achievementStreak.threshold}% to extend your streak!
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* No Significant Loss Streak Card - for newbies */}
-          {balance && dailyStartBalance && (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center justify-between">
-                  <span className="text-lg">No Significant Loss Streak</span>
-                  <span className="text-2xl">{noLossStreak.getEmoji(noLossStreak.unconfirmed)}</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-3xl font-bold">{noLossStreak.unconfirmed} days</p>
-                    <p className="text-sm text-muted-foreground">
-                      {noLossStreak.unconfirmed > noLossStreak.current ? 'Potential streak (confirm tomorrow)' : `Confirmed: ${noLossStreak.current} days`}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-semibold text-muted-foreground">{noLossStreak.longest} days</p>
-                    <p className="text-sm text-muted-foreground">Best streak</p>
-                  </div>
-                </div>
-                {!todayStatus.currentlyNoSignificantLoss && (
-                  <div className="mt-3 p-2 bg-red-50 dark:bg-red-900/20 rounded text-xs text-red-800 dark:text-red-200">
-                    ⚠️ Current loss exceeds {noLossStreak.threshold}% of daily target - streak at risk!
-                  </div>
-                )}
-                {todayStatus.currentlyNoSignificantLoss && todayStatus.hadSignificantLoss && (
-                  <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-xs text-blue-800 dark:text-blue-200">
-                    ℹ️ You had a significant loss earlier but recovered - finish without exceeding {noLossStreak.threshold}% loss to maintain streak!
-                  </div>
-                )}
-                {todayStatus.currentlyNoSignificantLoss && !todayStatus.hadSignificantLoss && (
-                  <div className="mt-3 p-2 bg-green-50 dark:bg-green-900/20 rounded text-xs text-green-800 dark:text-green-200">
-                    ✅ Good risk management! Keep losses below {noLossStreak.threshold}% to extend your streak!
-                  </div>
-                )}
-                <div className="mt-3 p-2 bg-gray-50 dark:bg-gray-900/20 rounded text-xs text-gray-700 dark:text-gray-300">
-                  💡 This streak tracks consecutive days without significant losses (&gt;{noLossStreak.threshold}% of daily target) - perfect for building consistent habits!
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {startOfDayPerpsValue > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Target Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-4">
-                  <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
-                    <span className="text-sm text-muted-foreground">Start of Day Perps Value</span>
-                    <span className="font-semibold">{hlService.formatUsdValue(startOfDayPerpsValue)}</span>
-                  </div>
-
-                  <div className="flex justify-between items-center p-3 bg-muted rounded-lg">
-                    <span className="text-sm text-muted-foreground">Daily Target Amount</span>
-                    <span className="font-semibold">
-                      {hlService.formatUsdValue(startOfDayPerpsValue * (target.targetPercentage / 100))}
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-center p-3 bg-primary/10 rounded-lg border border-primary/20">
-                    <span className="text-sm font-medium">Profit Per Trade Required</span>
-                    <span className="text-lg font-bold text-primary">
-                      {hlService.formatUsdValue(profitPerTrade)}
-                    </span>
-                  </div>
-                </div>
-
-                {target.minimumTrades > 0 && (
-                  <p className="text-sm text-muted-foreground text-center mt-4">
-                    To achieve your {target.targetPercentage}% daily target, you need to make {hlService.formatUsdValue(profitPerTrade)} profit on each of your {target.minimumTrades} trades.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          )}
-          
           {/* Trading Time Indicator */}
-          {(advancedSettings.preferredTradingTimes.length > 0 || advancedSettings.avoidedTradingTimes.length > 0) && (
-            <TradingTimeBar
-              preferredTimes={advancedSettings.preferredTradingTimes}
-              avoidedTimes={advancedSettings.avoidedTradingTimes}
+          {advancedSettings.preferredTimes.length > 0 || advancedSettings.avoidedTimes.length > 0 ? (
+            <TradingTimeBar 
+              preferredTimes={advancedSettings.preferredTimes}
+              avoidedTimes={advancedSettings.avoidedTimes}
             />
-          )}
+          ) : null}
         </div>
+      </div>
+
+      {/* Navigation */}
+      <div className="mt-8 flex justify-between">
+        <Link to="/">
+          <Button variant="outline">← Back to Home</Button>
+        </Link>
+        <Link to="/advanced-settings">
+          <Button variant="outline">Advanced Settings →</Button>
+        </Link>
       </div>
     </div>
   );

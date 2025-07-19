@@ -1,17 +1,18 @@
+import * as React from "react";
+import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
+import { useLoaderData, Form } from "react-router";
 import { Card } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { RotateCcw, LogIn, LogOut } from "lucide-react";
-import { useLocalStorage } from "~/hooks/useLocalStorage";
+import { requireAuth } from "~/lib/auth.server";
+import { getUserChecklists, upsertUserChecklist, getDb } from "~/db/client.server";
 
 interface ChecklistItem {
   id: string;
   text: string;
   checked: boolean;
 }
-
-const ENTRY_CHECKLIST_KEY = "trading-entry-checklist";
-const EXIT_CHECKLIST_KEY = "trading-exit-checklist";
 
 const defaultEntryChecklist: ChecklistItem[] = [
   { id: "e1", text: "Market structure confirms trend direction", checked: false },
@@ -39,43 +40,127 @@ const defaultExitChecklist: ChecklistItem[] = [
   { id: "x10", text: "Profit target achieved", checked: false },
 ];
 
-export default function ChecklistPage() {
-  const [entryChecklist, setEntryChecklist] = useLocalStorage<ChecklistItem[]>(
-    ENTRY_CHECKLIST_KEY,
-    defaultEntryChecklist
-  );
+export async function loader({ request, context }: LoaderFunctionArgs) {
+  const userAddress = await requireAuth(request, context.env);
+  const db = getDb(context.env);
+  
+  // Get user checklists from D1
+  const checklists = await getUserChecklists(db, userAddress);
+  
+  // Use stored checklists or defaults
+  const entryChecklist = checklists.entry.length > 0 ? checklists.entry : defaultEntryChecklist;
+  const exitChecklist = checklists.exit.length > 0 ? checklists.exit : defaultExitChecklist;
+  
+  return json({
+    userAddress,
+    entryChecklist,
+    exitChecklist,
+  });
+}
 
-  const [exitChecklist, setExitChecklist] = useLocalStorage<ChecklistItem[]>(
-    EXIT_CHECKLIST_KEY,
-    defaultExitChecklist
-  );
+export async function action({ request, context }: ActionFunctionArgs) {
+  const userAddress = await requireAuth(request, context.env);
+  const db = getDb(context.env);
+  const formData = await request.formData();
+  
+  const actionType = formData.get("actionType") as string;
+  const checklistType = formData.get("checklistType") as 'entry' | 'exit';
+  
+  if (actionType === "reset") {
+    // Reset to defaults
+    const defaultItems = checklistType === 'entry' ? defaultEntryChecklist : defaultExitChecklist;
+    await upsertUserChecklist(db, userAddress, checklistType, defaultItems);
+  } else if (actionType === "toggle") {
+    // Toggle specific item
+    const itemId = formData.get("itemId") as string;
+    const currentItems = formData.get("items") as string;
+    const items = JSON.parse(currentItems) as ChecklistItem[];
+    
+    const updatedItems = items.map(item =>
+      item.id === itemId ? { ...item, checked: !item.checked } : item
+    );
+    
+    await upsertUserChecklist(db, userAddress, checklistType, updatedItems);
+  }
+  
+  return json({ success: true });
+}
+
+export default function ChecklistPage() {
+  const { entryChecklist, exitChecklist } = useLoaderData<typeof loader>();
+  const [localEntryChecklist, setLocalEntryChecklist] = React.useState(entryChecklist);
+  const [localExitChecklist, setLocalExitChecklist] = React.useState(exitChecklist);
 
   const toggleEntryItem = (id: string) => {
-    setEntryChecklist(prev =>
+    setLocalEntryChecklist(prev =>
       prev.map(item =>
         item.id === id ? { ...item, checked: !item.checked } : item
       )
     );
+    
+    // Submit to server
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.innerHTML = `
+      <input name="actionType" value="toggle" />
+      <input name="checklistType" value="entry" />
+      <input name="itemId" value="${id}" />
+      <input name="items" value='${JSON.stringify(localEntryChecklist)}' />
+    `;
+    document.body.appendChild(form);
+    form.submit();
   };
 
   const toggleExitItem = (id: string) => {
-    setExitChecklist(prev =>
+    setLocalExitChecklist(prev =>
       prev.map(item =>
         item.id === id ? { ...item, checked: !item.checked } : item
       )
     );
+    
+    // Submit to server
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.innerHTML = `
+      <input name="actionType" value="toggle" />
+      <input name="checklistType" value="exit" />
+      <input name="itemId" value="${id}" />
+      <input name="items" value='${JSON.stringify(localExitChecklist)}' />
+    `;
+    document.body.appendChild(form);
+    form.submit();
   };
 
   const resetEntryChecklist = () => {
-    setEntryChecklist(defaultEntryChecklist);
+    setLocalEntryChecklist(defaultEntryChecklist);
+    
+    // Submit reset to server
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.innerHTML = `
+      <input name="actionType" value="reset" />
+      <input name="checklistType" value="entry" />
+    `;
+    document.body.appendChild(form);
+    form.submit();
   };
 
   const resetExitChecklist = () => {
-    setExitChecklist(defaultExitChecklist);
+    setLocalExitChecklist(defaultExitChecklist);
+    
+    // Submit reset to server
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.innerHTML = `
+      <input name="actionType" value="reset" />
+      <input name="checklistType" value="exit" />
+    `;
+    document.body.appendChild(form);
+    form.submit();
   };
 
-  const entryProgress = entryChecklist.filter(item => item.checked).length;
-  const exitProgress = exitChecklist.filter(item => item.checked).length;
+  const entryProgress = localEntryChecklist.filter(item => item.checked).length;
+  const exitProgress = localExitChecklist.filter(item => item.checked).length;
 
   return (
     <div className="container mx-auto p-4">
@@ -91,7 +176,7 @@ export default function ChecklistPage() {
               <div>
                 <h2 className="text-xl font-semibold">Entry Checklist</h2>
                 <p className="text-sm text-muted-foreground">
-                  {entryProgress}/{entryChecklist.length} completed
+                  {entryProgress}/{localEntryChecklist.length} completed
                 </p>
               </div>
             </div>
@@ -107,7 +192,7 @@ export default function ChecklistPage() {
           </div>
 
           <div className="space-y-3">
-            {entryChecklist.map(item => (
+            {localEntryChecklist.map(item => (
               <div
                 key={item.id}
                 className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
@@ -131,12 +216,12 @@ export default function ChecklistPage() {
 
           <div className="mt-6 p-4 bg-green-50 dark:bg-green-900/10 rounded-lg border border-green-200 dark:border-green-800">
             <p className="text-sm font-medium text-green-800 dark:text-green-200">
-              Entry Readiness: {entryProgress === entryChecklist.length ? "✓ All criteria met!" : `${entryProgress}/${entryChecklist.length} criteria checked`}
+              Entry Readiness: {entryProgress === localEntryChecklist.length ? "✓ All criteria met!" : `${entryProgress}/${localEntryChecklist.length} criteria checked`}
             </p>
             <div className="mt-2 h-2 bg-green-200 dark:bg-green-900 rounded-full overflow-hidden">
               <div
                 className="h-full bg-green-500 transition-all duration-300"
-                style={{ width: `${(entryProgress / entryChecklist.length) * 100}%` }}
+                style={{ width: `${(entryProgress / localEntryChecklist.length) * 100}%` }}
               />
             </div>
           </div>
@@ -151,7 +236,7 @@ export default function ChecklistPage() {
               <div>
                 <h2 className="text-xl font-semibold">Exit Checklist</h2>
                 <p className="text-sm text-muted-foreground">
-                  {exitProgress}/{exitChecklist.length} completed
+                  {exitProgress}/{localExitChecklist.length} completed
                 </p>
               </div>
             </div>
@@ -167,7 +252,7 @@ export default function ChecklistPage() {
           </div>
 
           <div className="space-y-3">
-            {exitChecklist.map(item => (
+            {localExitChecklist.map(item => (
               <div
                 key={item.id}
                 className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
@@ -191,12 +276,12 @@ export default function ChecklistPage() {
 
           <div className="mt-6 p-4 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-800">
             <p className="text-sm font-medium text-red-800 dark:text-red-200">
-              Exit Readiness: {exitProgress === exitChecklist.length ? "✓ All criteria met!" : `${exitProgress}/${exitChecklist.length} criteria checked`}
+              Exit Readiness: {exitProgress === localExitChecklist.length ? "✓ All criteria met!" : `${exitProgress}/${localExitChecklist.length} criteria checked`}
             </p>
             <div className="mt-2 h-2 bg-red-200 dark:bg-red-900 rounded-full overflow-hidden">
               <div
                 className="h-full bg-red-500 transition-all duration-300"
-                style={{ width: `${(exitProgress / exitChecklist.length) * 100}%` }}
+                style={{ width: `${(exitProgress / localExitChecklist.length) * 100}%` }}
               />
             </div>
           </div>

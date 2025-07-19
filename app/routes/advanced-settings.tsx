@@ -1,23 +1,85 @@
 import * as React from "react";
+import { json, redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
+import { useLoaderData, Form } from "react-router";
 import { toast } from "sonner";
 import { Trash2, Plus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { CryptoCombobox } from "~/components/CryptoCombobox";
-import { useLocalStorage } from "~/hooks/useLocalStorage";
-import type { AdvancedSettings, TimePeriod } from "~/lib/types";
-import { DEFAULT_ADVANCED_SETTINGS, STORAGE_KEYS } from "~/lib/constants";
+import { requireAuth } from "~/lib/auth.server";
+import { getUserSettings, upsertUserSettings } from "~/db/client.server";
+import { getDb } from "~/db/client.server";
+import type { AdvancedSettings, TimePeriod, DailyTarget } from "~/lib/types";
+import { DEFAULT_ADVANCED_SETTINGS, DEFAULT_DAILY_TARGET } from "~/lib/constants";
+
+export async function loader({ request, context }: LoaderFunctionArgs) {
+  const userAddress = await requireAuth(request, context.env);
+  const db = getDb(context.env);
+  
+  // Get user settings
+  const settings = await getUserSettings(db, userAddress);
+  
+  // Parse settings or use defaults
+  const advancedSettings = settings?.advancedSettings
+    ? JSON.parse(settings.advancedSettings) as AdvancedSettings
+    : DEFAULT_ADVANCED_SETTINGS;
+  
+  return json({
+    userAddress,
+    advancedSettings,
+    dailyTarget: settings?.dailyTarget || JSON.stringify(DEFAULT_DAILY_TARGET),
+    timezoneOffset: settings?.timezoneOffset || 0,
+  });
+}
+
+export async function action({ request, context }: ActionFunctionArgs) {
+  const userAddress = await requireAuth(request, context.env);
+  const db = getDb(context.env);
+  const formData = await request.formData();
+  
+  const actionType = formData.get("actionType") as string;
+  
+  if (actionType === "reset") {
+    // Reset to defaults
+    const existingSettings = await getUserSettings(db, userAddress);
+    await upsertUserSettings(db, {
+      userAddress,
+      advancedSettings: JSON.stringify(DEFAULT_ADVANCED_SETTINGS),
+      dailyTarget: existingSettings?.dailyTarget || JSON.stringify(DEFAULT_DAILY_TARGET),
+      timezoneOffset: existingSettings?.timezoneOffset || 0,
+    });
+    
+    return json({ success: true, reset: true });
+  } else {
+    // Save settings
+    const advancedSettingsData = formData.get("advancedSettings") as string;
+    const existingSettings = await getUserSettings(db, userAddress);
+    
+    await upsertUserSettings(db, {
+      userAddress,
+      advancedSettings: advancedSettingsData,
+      dailyTarget: existingSettings?.dailyTarget || JSON.stringify(DEFAULT_DAILY_TARGET),
+      timezoneOffset: existingSettings?.timezoneOffset || 0,
+    });
+    
+    return json({ success: true });
+  }
+}
 
 export default function AdvancedSettings() {
-  const [settings, setSettings] = useLocalStorage<AdvancedSettings>(
-    STORAGE_KEYS.ADVANCED_SETTINGS,
-    DEFAULT_ADVANCED_SETTINGS
-  );
-  const [tempSettings, setTempSettings] = React.useState(settings);
+  const { advancedSettings } = useLoaderData<typeof loader>();
+  const [tempSettings, setTempSettings] = React.useState(advancedSettings);
 
-  const handleSave = () => {
-    setSettings(tempSettings);
+  const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    formData.set("advancedSettings", JSON.stringify(tempSettings));
+    
+    // Submit form
+    const form = e.currentTarget;
+    form.submit();
+    
     toast.success("Advanced settings saved successfully!", {
       description: `Taker fee: ${tempSettings.takerFee}%, Maker fee: ${tempSettings.makerFee}%, Streak threshold: ${tempSettings.streakThreshold}%, Loss threshold: ${tempSettings.lossThreshold}%`
     });
@@ -25,7 +87,14 @@ export default function AdvancedSettings() {
 
   const handleReset = () => {
     setTempSettings(DEFAULT_ADVANCED_SETTINGS);
-    setSettings(DEFAULT_ADVANCED_SETTINGS);
+    
+    // Submit form with reset action
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.innerHTML = '<input name="actionType" value="reset" />';
+    document.body.appendChild(form);
+    form.submit();
+    
     toast.info("Settings reset to defaults");
   };
 
@@ -416,14 +485,15 @@ export default function AdvancedSettings() {
               </div>
             </div>
 
-            <div className="flex gap-2">
-              <Button onClick={handleSave} className="flex-1">
+            <Form method="post" onSubmit={handleSave} className="flex gap-2">
+              <input type="hidden" name="advancedSettings" value={JSON.stringify(tempSettings)} />
+              <Button type="submit" className="flex-1">
                 Save Settings
               </Button>
-              <Button onClick={handleReset} variant="outline">
+              <Button type="button" onClick={handleReset} variant="outline">
                 Reset to Defaults
               </Button>
-            </div>
+            </Form>
           </div>
 
           <div className="pt-6 border-t">

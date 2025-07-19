@@ -1,10 +1,13 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { json, redirect, type LoaderFunctionArgs } from "react-router";
+import { useLoaderData } from "react-router";
 import type { Route } from "./+types/home";
-import { WalletSetup } from "~/components/wallet-setup";
 import { BalanceDisplay } from "~/components/balance-display";
-import { useLocalStorage } from "~/hooks/useLocalStorage";
-import { useBalanceUpdater } from "~/hooks/useBalanceUpdater";
-import { HyperliquidService, type BalanceInfo } from "~/lib/hyperliquid";
+import { getSessionUser, destroySession } from "~/lib/auth.server";
+import { getBalanceData } from "~/services/balance.server";
+import { getUserSettings } from "~/db/client.server";
+import { getDb } from "~/db/client.server";
+import { HyperliquidService } from "~/lib/hyperliquid";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -13,25 +16,64 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-export default function Home() {
-  const [walletAddress, setWalletAddress] = useLocalStorage<string | null>("hyperliquid-wallet", null);
-  const [error, setError] = useState<string | null>(null);
-  const { balance, nextUpdateIn, isUpdating, updateNow } = useBalanceUpdater(walletAddress);
-  const hlService = new HyperliquidService();
+export async function loader({ request, context }: LoaderFunctionArgs) {
+  // Check if user is authenticated
+  const userAddress = await getSessionUser(request, context.env);
+  
+  if (!userAddress) {
+    throw redirect("/connect-wallet");
+  }
+  
+  // Get user settings and balance data
+  const db = getDb(context.env);
+  const settings = await getUserSettings(db, userAddress);
+  const timezoneOffset = settings?.timezoneOffset || 0;
+  
+  // Get balance data
+  const { balance, dailyStartBalance, timestamp } = await getBalanceData(
+    context.env,
+    userAddress,
+    timezoneOffset
+  );
+  
+  return json({
+    userAddress,
+    balance,
+    dailyStartBalance,
+    timestamp,
+    settings,
+  });
+}
 
+export async function action({ request }: LoaderFunctionArgs) {
+  const formData = await request.formData();
+  const action = formData.get("action");
+  
+  if (action === "disconnect") {
+    const headers = await destroySession(request);
+    return redirect("/connect-wallet", { headers });
+  }
+  
+  return json({ error: "Invalid action" }, { status: 400 });
+}
+
+export default function Home() {
+  const { userAddress, balance, settings } = useLoaderData<typeof loader>();
+  const hlService = new HyperliquidService();
+  
   // Update document title when balance changes
   useEffect(() => {
-    if (balance?.rawData) {
-      const hasPositions = balance.rawData.perpetualPositions && balance.rawData.perpetualPositions.length > 0;
+    if (balance) {
+      const hasPositions = balance.perpetualPositions && balance.perpetualPositions.length > 0;
       
       if (hasPositions) {
         // Calculate total P&L
-        const totalPnL = balance.rawData.perpetualPositions.reduce((sum, pos) => 
+        const totalPnL = balance.perpetualPositions.reduce((sum, pos) => 
           sum + parseFloat(pos.unrealizedPnl || "0"), 0
         );
         
         // Get account value
-        const accountValue = parseFloat(balance.rawData.accountValue || "0");
+        const accountValue = parseFloat(balance.accountValue || "0");
         
         // Format title with P&L and account value
         const pnlSign = totalPnL >= 0 ? '+' : '';
@@ -39,7 +81,7 @@ export default function Home() {
         const accountFormatted = hlService.formatUsdValue(accountValue).replace('$', '');
         
         document.title = `${pnlSign}$${pnlFormatted} | $${accountFormatted} - HTH`;
-      } else if (balance.accountValue > 0) {
+      } else if (parseFloat(balance.accountValue) > 0) {
         // No positions but has account value
         const accountFormatted = hlService.formatUsdValue(balance.accountValue).replace('$', '');
         document.title = `$${accountFormatted} - HTH`;
@@ -50,20 +92,16 @@ export default function Home() {
       document.title = "Hyper Trader Hub";
     }
   }, [balance]);
-
-  const handleWalletSubmit = async (address: string) => {
-    setWalletAddress(address);
-    // Balance will be fetched automatically by the hook
-  };
-
+  
   const handleDisconnect = () => {
-    setWalletAddress(null);
-    setError(null);
-    // Clear balance-related data from localStorage
-    localStorage.removeItem("balance-data");
-    localStorage.removeItem("daily-start-balance");
+    // Submit form to disconnect
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.innerHTML = '<input name="action" value="disconnect" />';
+    document.body.appendChild(form);
+    form.submit();
   };
-
+  
   return (
     <main className="container mx-auto px-4 py-8">
       <header className="text-center mb-8">
@@ -72,22 +110,15 @@ export default function Home() {
           Track your Hyperliquid portfolio and trading performance
         </p>
       </header>
-
-        {!walletAddress ? (
-          <WalletSetup 
-            onWalletSubmit={handleWalletSubmit} 
-            isLoading={false}
-            error={error}
-          />
-        ) : (
-          <BalanceDisplay
-            walletAddress={walletAddress}
-            balances={balance?.rawData || null}
-            storedBalance={balance}
-            isLoading={!balance && !error}
-            onDisconnect={handleDisconnect}
-          />
-        )}
+      
+      <BalanceDisplay
+        walletAddress={userAddress}
+        balances={balance}
+        storedBalance={null}
+        isLoading={false}
+        onDisconnect={handleDisconnect}
+        advancedSettings={settings?.advancedSettings ? JSON.parse(settings.advancedSettings) : undefined}
+      />
     </main>
   );
 }

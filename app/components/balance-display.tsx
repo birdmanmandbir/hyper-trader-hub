@@ -5,8 +5,7 @@ import { Button } from "~/components/ui/button";
 import { HyperliquidService, type BalanceInfo } from "~/lib/hyperliquid";
 import { PositionCard } from "~/components/PositionCard";
 import { RealtimePnLSummary } from "~/components/RealtimePnLSummary";
-import { useLocalStorage } from "~/hooks/useLocalStorage";
-import { DEFAULT_ADVANCED_SETTINGS, STORAGE_KEYS } from "~/lib/constants";
+import { DEFAULT_ADVANCED_SETTINGS } from "~/lib/constants";
 import type { AdvancedSettings } from "~/lib/types";
 
 interface StoredBalance {
@@ -24,14 +23,12 @@ interface BalanceDisplayProps {
   storedBalance?: StoredBalance | null;
   isLoading: boolean;
   onDisconnect: () => void;
+  advancedSettings?: AdvancedSettings;
 }
 
-export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoading, onDisconnect }: BalanceDisplayProps) {
+export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoading, onDisconnect, advancedSettings }: BalanceDisplayProps) {
   const hlService = new HyperliquidService();
-  const [advancedSettings] = useLocalStorage<AdvancedSettings>(
-    STORAGE_KEYS.ADVANCED_SETTINGS,
-    DEFAULT_ADVANCED_SETTINGS
-  );
+  const settings = advancedSettings || DEFAULT_ADVANCED_SETTINGS;
 
   const formatAddress = (address: string) => {
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
@@ -230,8 +227,8 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
                         const tpProfit = tpProfitPerCoin * tpSize;
                         
                         // Calculate fees
-                        const entryFeeProportional = (positionValue * (advancedSettings.takerFee / 100)) * (tpSize / sizeNum);
-                        const tpExitFee = (tpPrice * tpSize) * (advancedSettings.makerFee / 100);
+                        const entryFeeProportional = (positionValue * (settings.takerFee / 100)) * (tpSize / sizeNum);
+                        const tpExitFee = (tpPrice * tpSize) * (settings.makerFee / 100);
                         
                         totalExpectedProfit += tpProfit - entryFeeProportional - tpExitFee;
                       });
@@ -250,8 +247,8 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
                       const slLossBeforeFees = slLossPerCoin * sizeNum;
                       
                       // Calculate fees
-                      const entryFee = positionValue * (advancedSettings.takerFee / 100);
-                      const slExitFee = (slPrice * sizeNum) * (advancedSettings.takerFee / 100);
+                      const entryFee = positionValue * (settings.takerFee / 100);
+                      const slExitFee = (slPrice * sizeNum) * (settings.takerFee / 100);
                       
                       const totalSlLoss = slLossBeforeFees < 0 
                         ? slLossBeforeFees - entryFee - slExitFee  // Profit scenario
@@ -302,8 +299,8 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
                   key={index}
                   position={position}
                   orders={balances.orders}
-                  takerFee={advancedSettings.takerFee}
-                  makerFee={advancedSettings.makerFee}
+                  takerFee={settings.takerFee}
+                  makerFee={settings.makerFee}
                   accountValue={balances.accountValue}
                 />
               ))}
