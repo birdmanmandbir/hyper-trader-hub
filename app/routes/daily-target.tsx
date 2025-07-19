@@ -1,6 +1,6 @@
 import * as React from "react";
 import { json, redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
-import { useLoaderData, Link, Form } from "react-router";
+import { useLoaderData, Link, Form, useActionData } from "react-router";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -84,7 +84,10 @@ export async function action({ request, context }: ActionFunctionArgs) {
     timezoneOffset: existingSettings?.timezoneOffset || 0,
   });
   
-  return json({ success: true });
+  return json({ 
+    success: true,
+    message: "Daily target saved successfully!"
+  });
 }
 
 export default function DailyTarget() {
@@ -96,9 +99,17 @@ export default function DailyTarget() {
     dailyStartBalance,
     todayBalance,
   } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
   
   const [tempTarget, setTempTarget] = React.useState(dailyTarget);
   const hlService = new HyperliquidService();
+  
+  // Show toast on successful save
+  React.useEffect(() => {
+    if (actionData?.success && actionData?.message) {
+      toast.success(actionData.message);
+    }
+  }, [actionData]);
   
   const currentPerpsValue = balance?.perpsValue || 0;
   const startOfDayPerpsValue = dailyStartBalance || currentPerpsValue;

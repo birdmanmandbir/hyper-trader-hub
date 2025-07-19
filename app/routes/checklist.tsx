@@ -1,6 +1,6 @@
 import * as React from "react";
 import { json, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
-import { useLoaderData, Form } from "react-router";
+import { useLoaderData, Form, useFetcher } from "react-router";
 import { Card } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -88,79 +88,123 @@ export async function action({ request, context }: ActionFunctionArgs) {
 
 export default function ChecklistPage() {
   const { entryChecklist, exitChecklist } = useLoaderData<typeof loader>();
-  const [localEntryChecklist, setLocalEntryChecklist] = React.useState(entryChecklist);
-  const [localExitChecklist, setLocalExitChecklist] = React.useState(exitChecklist);
+  const toggleFetcher = useFetcher();
+  const resetFetcher = useFetcher();
+  
+  // Use optimistic updates for better UX
+  const optimisticEntryChecklist = React.useMemo(() => {
+    if (!toggleFetcher.formData) return entryChecklist;
+    
+    const actionType = toggleFetcher.formData.get("actionType");
+    const checklistType = toggleFetcher.formData.get("checklistType");
+    const itemId = toggleFetcher.formData.get("itemId");
+    
+    if (actionType === "toggle" && checklistType === "entry" && itemId) {
+      return entryChecklist.map(item =>
+        item.id === itemId ? { ...item, checked: !item.checked } : item
+      );
+    }
+    
+    return entryChecklist;
+  }, [entryChecklist, toggleFetcher.formData]);
+  
+  const optimisticExitChecklist = React.useMemo(() => {
+    if (!toggleFetcher.formData) return exitChecklist;
+    
+    const actionType = toggleFetcher.formData.get("actionType");
+    const checklistType = toggleFetcher.formData.get("checklistType");
+    const itemId = toggleFetcher.formData.get("itemId");
+    
+    if (actionType === "toggle" && checklistType === "exit" && itemId) {
+      return exitChecklist.map(item =>
+        item.id === itemId ? { ...item, checked: !item.checked } : item
+      );
+    }
+    
+    return exitChecklist;
+  }, [exitChecklist, toggleFetcher.formData]);
+  
+  // Handle reset optimistically
+  const displayEntryChecklist = React.useMemo(() => {
+    if (!resetFetcher.formData) return optimisticEntryChecklist;
+    
+    const actionType = resetFetcher.formData.get("actionType");
+    const checklistType = resetFetcher.formData.get("checklistType");
+    
+    if (actionType === "reset" && checklistType === "entry") {
+      return defaultEntryChecklist;
+    }
+    
+    return optimisticEntryChecklist;
+  }, [optimisticEntryChecklist, resetFetcher.formData]);
+  
+  const displayExitChecklist = React.useMemo(() => {
+    if (!resetFetcher.formData) return optimisticExitChecklist;
+    
+    const actionType = resetFetcher.formData.get("actionType");
+    const checklistType = resetFetcher.formData.get("checklistType");
+    
+    if (actionType === "reset" && checklistType === "exit") {
+      return defaultExitChecklist;
+    }
+    
+    return optimisticExitChecklist;
+  }, [optimisticExitChecklist, resetFetcher.formData]);
 
   const toggleEntryItem = (id: string) => {
-    setLocalEntryChecklist(prev =>
-      prev.map(item =>
-        item.id === id ? { ...item, checked: !item.checked } : item
-      )
+    const currentItems = optimisticEntryChecklist.map(item =>
+      item.id === id ? { ...item, checked: !item.checked } : item
     );
     
-    // Submit to server
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.innerHTML = `
-      <input name="actionType" value="toggle" />
-      <input name="checklistType" value="entry" />
-      <input name="itemId" value="${id}" />
-      <input name="items" value='${JSON.stringify(localEntryChecklist)}' />
-    `;
-    document.body.appendChild(form);
-    form.submit();
+    toggleFetcher.submit(
+      {
+        actionType: "toggle",
+        checklistType: "entry",
+        itemId: id,
+        items: JSON.stringify(currentItems)
+      },
+      { method: "post" }
+    );
   };
 
   const toggleExitItem = (id: string) => {
-    setLocalExitChecklist(prev =>
-      prev.map(item =>
-        item.id === id ? { ...item, checked: !item.checked } : item
-      )
+    const currentItems = optimisticExitChecklist.map(item =>
+      item.id === id ? { ...item, checked: !item.checked } : item
     );
     
-    // Submit to server
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.innerHTML = `
-      <input name="actionType" value="toggle" />
-      <input name="checklistType" value="exit" />
-      <input name="itemId" value="${id}" />
-      <input name="items" value='${JSON.stringify(localExitChecklist)}' />
-    `;
-    document.body.appendChild(form);
-    form.submit();
+    toggleFetcher.submit(
+      {
+        actionType: "toggle",
+        checklistType: "exit",
+        itemId: id,
+        items: JSON.stringify(currentItems)
+      },
+      { method: "post" }
+    );
   };
 
   const resetEntryChecklist = () => {
-    setLocalEntryChecklist(defaultEntryChecklist);
-    
-    // Submit reset to server
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.innerHTML = `
-      <input name="actionType" value="reset" />
-      <input name="checklistType" value="entry" />
-    `;
-    document.body.appendChild(form);
-    form.submit();
+    resetFetcher.submit(
+      {
+        actionType: "reset",
+        checklistType: "entry"
+      },
+      { method: "post" }
+    );
   };
 
   const resetExitChecklist = () => {
-    setLocalExitChecklist(defaultExitChecklist);
-    
-    // Submit reset to server
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.innerHTML = `
-      <input name="actionType" value="reset" />
-      <input name="checklistType" value="exit" />
-    `;
-    document.body.appendChild(form);
-    form.submit();
+    resetFetcher.submit(
+      {
+        actionType: "reset",
+        checklistType: "exit"
+      },
+      { method: "post" }
+    );
   };
 
-  const entryProgress = localEntryChecklist.filter(item => item.checked).length;
-  const exitProgress = localExitChecklist.filter(item => item.checked).length;
+  const entryProgress = displayEntryChecklist.filter(item => item.checked).length;
+  const exitProgress = displayExitChecklist.filter(item => item.checked).length;
 
   return (
     <div className="container mx-auto p-4">
@@ -176,7 +220,7 @@ export default function ChecklistPage() {
               <div>
                 <h2 className="text-xl font-semibold">Entry Checklist</h2>
                 <p className="text-sm text-muted-foreground">
-                  {entryProgress}/{localEntryChecklist.length} completed
+                  {entryProgress}/{displayEntryChecklist.length} completed
                 </p>
               </div>
             </div>
@@ -192,7 +236,7 @@ export default function ChecklistPage() {
           </div>
 
           <div className="space-y-3">
-            {localEntryChecklist.map(item => (
+            {displayEntryChecklist.map(item => (
               <div
                 key={item.id}
                 className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
@@ -216,12 +260,12 @@ export default function ChecklistPage() {
 
           <div className="mt-6 p-4 bg-green-50 dark:bg-green-900/10 rounded-lg border border-green-200 dark:border-green-800">
             <p className="text-sm font-medium text-green-800 dark:text-green-200">
-              Entry Readiness: {entryProgress === localEntryChecklist.length ? "✓ All criteria met!" : `${entryProgress}/${localEntryChecklist.length} criteria checked`}
+              Entry Readiness: {entryProgress === displayEntryChecklist.length ? "✓ All criteria met!" : `${entryProgress}/${displayEntryChecklist.length} criteria checked`}
             </p>
             <div className="mt-2 h-2 bg-green-200 dark:bg-green-900 rounded-full overflow-hidden">
               <div
                 className="h-full bg-green-500 transition-all duration-300"
-                style={{ width: `${(entryProgress / localEntryChecklist.length) * 100}%` }}
+                style={{ width: `${(entryProgress / displayEntryChecklist.length) * 100}%` }}
               />
             </div>
           </div>
@@ -236,7 +280,7 @@ export default function ChecklistPage() {
               <div>
                 <h2 className="text-xl font-semibold">Exit Checklist</h2>
                 <p className="text-sm text-muted-foreground">
-                  {exitProgress}/{localExitChecklist.length} completed
+                  {exitProgress}/{displayExitChecklist.length} completed
                 </p>
               </div>
             </div>
@@ -252,7 +296,7 @@ export default function ChecklistPage() {
           </div>
 
           <div className="space-y-3">
-            {localExitChecklist.map(item => (
+            {displayExitChecklist.map(item => (
               <div
                 key={item.id}
                 className="flex items-center space-x-3 p-3 rounded-lg hover:bg-muted/50 transition-colors"
@@ -276,12 +320,12 @@ export default function ChecklistPage() {
 
           <div className="mt-6 p-4 bg-red-50 dark:bg-red-900/10 rounded-lg border border-red-200 dark:border-red-800">
             <p className="text-sm font-medium text-red-800 dark:text-red-200">
-              Exit Readiness: {exitProgress === localExitChecklist.length ? "✓ All criteria met!" : `${exitProgress}/${localExitChecklist.length} criteria checked`}
+              Exit Readiness: {exitProgress === displayExitChecklist.length ? "✓ All criteria met!" : `${exitProgress}/${displayExitChecklist.length} criteria checked`}
             </p>
             <div className="mt-2 h-2 bg-red-200 dark:bg-red-900 rounded-full overflow-hidden">
               <div
                 className="h-full bg-red-500 transition-all duration-300"
-                style={{ width: `${(exitProgress / localExitChecklist.length) * 100}%` }}
+                style={{ width: `${(exitProgress / displayExitChecklist.length) * 100}%` }}
               />
             </div>
           </div>

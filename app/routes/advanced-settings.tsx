@@ -1,6 +1,6 @@
 import * as React from "react";
 import { json, redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
-import { useLoaderData, Form } from "react-router";
+import { useLoaderData, Form, useActionData, useNavigation } from "react-router";
 import { toast } from "sonner";
 import { Trash2, Plus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
@@ -50,7 +50,11 @@ export async function action({ request, context }: ActionFunctionArgs) {
       timezoneOffset: existingSettings?.timezoneOffset || 0,
     });
     
-    return json({ success: true, reset: true });
+    return json({ 
+      success: true, 
+      reset: true,
+      message: "Settings reset to defaults" 
+    });
   } else {
     // Save settings
     const advancedSettingsData = formData.get("advancedSettings") as string;
@@ -63,39 +67,35 @@ export async function action({ request, context }: ActionFunctionArgs) {
       timezoneOffset: existingSettings?.timezoneOffset || 0,
     });
     
-    return json({ success: true });
+    const settings = JSON.parse(advancedSettingsData) as AdvancedSettings;
+    return json({ 
+      success: true,
+      message: `Advanced settings saved successfully! Taker fee: ${settings.takerFee}%, Maker fee: ${settings.makerFee}%, Streak threshold: ${settings.streakThreshold}%, Loss threshold: ${settings.lossThreshold}%`
+    });
   }
 }
 
 export default function AdvancedSettings() {
   const { advancedSettings } = useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
+  const navigation = useNavigation();
   const [tempSettings, setTempSettings] = React.useState(advancedSettings);
-
-  const handleSave = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    formData.set("advancedSettings", JSON.stringify(tempSettings));
-    
-    // Submit form
-    const form = e.currentTarget;
-    form.submit();
-    
-    toast.success("Advanced settings saved successfully!", {
-      description: `Taker fee: ${tempSettings.takerFee}%, Maker fee: ${tempSettings.makerFee}%, Streak threshold: ${tempSettings.streakThreshold}%, Loss threshold: ${tempSettings.lossThreshold}%`
-    });
-  };
+  const resetFormRef = React.useRef<HTMLFormElement>(null);
+  
+  // Show toast on successful action
+  React.useEffect(() => {
+    if (actionData?.success && actionData?.message) {
+      if (actionData.reset) {
+        toast.info(actionData.message);
+        setTempSettings(DEFAULT_ADVANCED_SETTINGS);
+      } else {
+        toast.success(actionData.message);
+      }
+    }
+  }, [actionData]);
 
   const handleReset = () => {
-    setTempSettings(DEFAULT_ADVANCED_SETTINGS);
-    
-    // Submit form with reset action
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.innerHTML = '<input name="actionType" value="reset" />';
-    document.body.appendChild(form);
-    form.submit();
-    
-    toast.info("Settings reset to defaults");
+    resetFormRef.current?.requestSubmit();
   };
 
   const addTimePeriod = (type: 'preferred' | 'avoided') => {
@@ -485,15 +485,29 @@ export default function AdvancedSettings() {
               </div>
             </div>
 
-            <Form method="post" onSubmit={handleSave} className="flex gap-2">
-              <input type="hidden" name="advancedSettings" value={JSON.stringify(tempSettings)} />
-              <Button type="submit" className="flex-1">
-                Save Settings
-              </Button>
-              <Button type="button" onClick={handleReset} variant="outline">
-                Reset to Defaults
-              </Button>
-            </Form>
+            <div className="flex gap-2">
+              <Form method="post" className="flex-1">
+                <input type="hidden" name="advancedSettings" value={JSON.stringify(tempSettings)} />
+                <Button 
+                  type="submit" 
+                  className="w-full"
+                  disabled={navigation.state === "submitting"}
+                >
+                  {navigation.state === "submitting" ? "Saving..." : "Save Settings"}
+                </Button>
+              </Form>
+              <Form method="post" ref={resetFormRef}>
+                <input type="hidden" name="actionType" value="reset" />
+                <Button 
+                  type="button" 
+                  onClick={handleReset} 
+                  variant="outline"
+                  disabled={navigation.state === "submitting"}
+                >
+                  Reset to Defaults
+                </Button>
+              </Form>
+            </div>
           </div>
 
           <div className="pt-6 border-t">
