@@ -9,7 +9,8 @@
       "Bash(grep:*)",
       "Bash(mkdir:*)",
       "WebFetch(domain:bundlephobia.com)",
-      "WebFetch(domain:developers.cloudflare.com)"
+      "WebFetch(domain:developers.cloudflare.com)",
+      "WebFetch(domain:reactrouter.com)"
     ],
     "deny": []
   }
