@@ -9,7 +9,8 @@ import { requireAuth } from "~/lib/auth.server";
 import { getBalanceData } from "~/services/balance.server";
 import { getUserSettings, upsertUserSettings, getDailyBalance } from "~/db/client.server";
 import { getDb } from "~/db/client.server";
-import { HyperliquidService } from "~/lib/hyperliquid";
+import { useHyperliquidService } from "~/providers/HyperliquidProvider";
+import { useAutoRefresh } from "~/hooks/useAutoRefresh";
 import { TradingTimeBar } from "~/components/TradingTimeBar";
 import { TradeCalculator } from "~/components/TradeCalculator";
 import { getUserDateString } from "~/lib/time-utils.server";
@@ -20,7 +21,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   const userAddress = await requireAuth(request, context.cloudflare.env);
   const db = getDb(context.cloudflare.env);
   
-  // Get user settings
+  // Get settings for timezone offset
   const settings = await getUserSettings(db, userAddress);
   const timezoneOffset = settings?.timezoneOffset || 0;
   
@@ -33,16 +34,16 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     ? JSON.parse(settings.advancedSettings) as AdvancedSettings
     : DEFAULT_ADVANCED_SETTINGS;
   
-  // Get balance data
-  const { balance, dailyStartBalance } = await getBalanceData(
-    context.cloudflare.env,
-    userAddress,
-    timezoneOffset
-  );
-  
-  // Get today's balance record for streak tracking
+  // Get today's date for balance record
   const todayDate = getUserDateString(new Date(), timezoneOffset);
-  const todayBalance = await getDailyBalance(db, userAddress, todayDate);
+  
+  // Fetch balance data and today's balance in parallel
+  const [balanceData, todayBalance] = await Promise.all([
+    getBalanceData(context.cloudflare.env, userAddress, timezoneOffset),
+    getDailyBalance(db, userAddress, todayDate)
+  ]);
+  
+  const { balance, dailyStartBalance } = balanceData;
   
   return {
     userAddress,
@@ -102,7 +103,10 @@ export default function DailyTarget() {
   const actionData = useActionData<typeof action>();
   
   const [tempTarget, setTempTarget] = React.useState(dailyTarget);
-  const hlService = new HyperliquidService();
+  const hlService = useHyperliquidService();
+  
+  // Auto-refresh balance data every 30 seconds
+  const { secondsUntilRefresh, isRefreshing } = useAutoRefresh(30000);
   
   // Show toast on successful save
   React.useEffect(() => {

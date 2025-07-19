@@ -24,6 +24,7 @@ export function Navigation() {
                   to={item.path}
                   end={item.end}
                   className="nav-link px-4 py-2 rounded-md text-sm font-medium transition-colors"
+                  prefetch="intent"
                 >
                   {item.label}
                 </NavLink>
@@ -41,6 +42,7 @@ export function Navigation() {
                 to={item.path}
                 end={item.end}
                 className="nav-link px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                prefetch="intent"
               >
                 {item.label}
               </NavLink>

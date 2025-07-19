@@ -4,7 +4,7 @@ import { Button } from "~/components/ui/button";
 import { Switch } from "~/components/ui/switch";
 import { Input } from "~/components/ui/input";
 import { CryptoCombobox } from "~/components/CryptoCombobox";
-import { HyperliquidService } from "~/lib/hyperliquid";
+import { useHyperliquidService } from "~/providers/HyperliquidProvider";
 import { useLivePrice } from "~/hooks/useLivePrice";
 import { Copy, Calculator } from "lucide-react";
 import { formatPrice, getPriceDecimals } from "~/lib/price-decimals";
@@ -19,8 +19,8 @@ interface TradeCalculatorProps {
   balance: BalanceInfo | null;
 }
 
-export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, startOfDayPerpsValue, balance }: TradeCalculatorProps) {
-  const hlService = new HyperliquidService();
+export const TradeCalculator = React.memo(function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, startOfDayPerpsValue, balance }: TradeCalculatorProps) {
+  const hlService = useHyperliquidService();
   
   const [isLong, setIsLong] = React.useState(true);
   const [selectedCoin, setSelectedCoin] = React.useState<string>("");
@@ -37,7 +37,9 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
   // Initialize selected coin based on direction
   React.useEffect(() => {
     const defaultCoin = isLong ? advancedSettings.defaultLongCrypto : advancedSettings.defaultShortCrypto;
-    setSelectedCoin(defaultCoin);
+    if (selectedCoin !== defaultCoin) {
+      setSelectedCoin(defaultCoin);
+    }
   }, [isLong, advancedSettings.defaultLongCrypto, advancedSettings.defaultShortCrypto]);
   
   // Use selected coin or default
@@ -575,4 +577,4 @@ export function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, 
       </CardContent>
     </Card>
   );
-}
+});

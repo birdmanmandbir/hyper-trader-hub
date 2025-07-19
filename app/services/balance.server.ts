@@ -1,6 +1,8 @@
 import { getDb, getDailyBalance, createDailyBalance } from "~/db/client.server";
 import { HyperliquidService, type BalanceInfo } from "~/lib/hyperliquid";
 import { getUserDateString } from "~/lib/time-utils.server";
+import { getCachedData, getUserCacheKey } from "~/services/cache.server";
+import { coalesceRequests } from "~/services/request-coalescing.server";
 
 export class BalanceService {
   constructor(
@@ -10,15 +12,30 @@ export class BalanceService {
   ) {}
 
   /**
-   * Fetch balance directly from Hyperliquid API
-   * No caching - always fresh data
+   * Fetch balance with caching and request coalescing
+   * Cache for 30 seconds to avoid repeated API calls during navigation
    */
   async getBalance(): Promise<BalanceInfo> {
-    const hlService = new HyperliquidService();
-    const balance = await hlService.getUserBalances(this.userAddress);
+    const cacheKey = getUserCacheKey(this.userAddress, 'balance');
+    const coalescingKey = `balance:${this.userAddress}`;
     
-    // Ensure daily balance record exists
-    await this.ensureDailyBalance(balance);
+    const balance = await coalesceRequests(
+      coalescingKey,
+      () => getCachedData(
+        cacheKey,
+        async () => {
+          const hlService = new HyperliquidService();
+          return await hlService.getUserBalances(this.userAddress);
+        },
+        { ttl: 30 } // Cache for 30 seconds
+      )
+    );
+    
+    // Ensure daily balance record exists in the background
+    // Don't await this since it's not critical for displaying data
+    this.ensureDailyBalance(balance).catch(err => {
+      console.error('Failed to ensure daily balance:', err);
+    });
     
     return balance;
   }
@@ -52,8 +69,13 @@ export class BalanceService {
     const accountValue = parseFloat(balance.accountValue);
     const hlService = new HyperliquidService();
     
+    // Parallelize price fetching (no caching - prices should be real-time)
+    const [allPrices, hypePrice] = await Promise.all([
+      hlService.infoClient.allMids(),
+      hlService.getHypePrice()
+    ]);
+    
     // Calculate spot value
-    const allPrices = await hlService.infoClient.allMids();
     const spotValue = balance.spotBalances.reduce((total, bal) => {
       const amount = parseFloat(bal.total);
       if (amount === 0) return total;
@@ -71,7 +93,6 @@ export class BalanceService {
     }, 0);
     
     // Calculate staking value
-    const hypePrice = await hlService.getHypePrice();
     const stakingValue = balance.staking 
       ? (parseFloat(balance.staking.totalStaked) + parseFloat(balance.staking.pendingWithdrawals)) * hypePrice 
       : 0;

@@ -2,7 +2,8 @@ import * as React from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
-import { HyperliquidService, type BalanceInfo } from "~/lib/hyperliquid";
+import { type BalanceInfo } from "~/lib/hyperliquid";
+import { useHyperliquidService } from "~/providers/HyperliquidProvider";
 import { PositionCard } from "~/components/PositionCard";
 import { RealtimePnLSummary } from "~/components/RealtimePnLSummary";
 import { DEFAULT_ADVANCED_SETTINGS } from "~/lib/constants";
@@ -26,8 +27,8 @@ interface BalanceDisplayProps {
   advancedSettings?: AdvancedSettings;
 }
 
-export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoading, onDisconnect, advancedSettings }: BalanceDisplayProps) {
-  const hlService = new HyperliquidService();
+export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress, balances, storedBalance, isLoading, onDisconnect, advancedSettings }: BalanceDisplayProps) {
+  const hlService = useHyperliquidService();
   const settings = advancedSettings || DEFAULT_ADVANCED_SETTINGS;
 
   const formatAddress = (address: string) => {
@@ -379,4 +380,4 @@ export function BalanceDisplay({ walletAddress, balances, storedBalance, isLoadi
       )}
     </div>
   );
-}
+});

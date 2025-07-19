@@ -1,4 +1,3 @@
-import { useEffect, useRef } from "react";
 import * as React from "react";
 import { redirect, type LoaderFunctionArgs } from "react-router";
 import { useLoaderData, Form } from "react-router";
@@ -8,7 +7,8 @@ import { getSessionUser, destroySession } from "~/lib/auth.server";
 import { getBalanceData } from "~/services/balance.server";
 import { getUserSettings } from "~/db/client.server";
 import { getDb } from "~/db/client.server";
-import { HyperliquidService } from "~/lib/hyperliquid";
+import { useHyperliquidService } from "~/providers/HyperliquidProvider";
+import { useAutoRefresh } from "~/hooks/useAutoRefresh";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -27,6 +27,8 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   
   // Get user settings and balance data
   const db = getDb(context.cloudflare.env);
+  
+  // Get settings
   const settings = await getUserSettings(db, userAddress);
   const timezoneOffset = settings?.timezoneOffset || 0;
   
@@ -60,11 +62,14 @@ export async function action({ request }: LoaderFunctionArgs) {
 
 export default function Home() {
   const { userAddress, balance, settings } = useLoaderData<typeof loader>();
-  const hlService = new HyperliquidService();
+  const hlService = useHyperliquidService();
   const disconnectFormRef = React.useRef<HTMLFormElement>(null);
   
+  // Auto-refresh balance data every 30 seconds
+  const { secondsUntilRefresh, isRefreshing } = useAutoRefresh(30000);
+  
   // Update document title when balance changes (client-side only)
-  useEffect(() => {
+  React.useEffect(() => {
     if (typeof document === 'undefined') return; // Skip on server
     
     if (balance) {
@@ -108,6 +113,13 @@ export default function Home() {
         <p className="text-muted-foreground">
           Track your Hyperliquid portfolio and trading performance
         </p>
+        <div className="mt-2 text-sm text-muted-foreground">
+          {isRefreshing ? (
+            <span>Refreshing...</span>
+          ) : (
+            <span>Next refresh in {secondsUntilRefresh}s</span>
+          )}
+        </div>
       </header>
       
       <BalanceDisplay

@@ -9,6 +9,7 @@ import {
 import { Toaster } from "sonner";
 import { Navigation } from "~/components/navigation";
 import { PriceProvider } from "~/providers/PriceProvider";
+import { HyperliquidProvider } from "~/providers/HyperliquidProvider";
 
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -49,9 +50,11 @@ export default function App() {
     <>
       <div className="min-h-screen bg-background">
         <Navigation />
-        <PriceProvider>
-          <Outlet />
-        </PriceProvider>
+        <HyperliquidProvider>
+          <PriceProvider>
+            <Outlet />
+          </PriceProvider>
+        </HyperliquidProvider>
       </div>
       <Toaster 
         position="bottom-right"

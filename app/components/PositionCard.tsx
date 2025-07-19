@@ -1,5 +1,5 @@
 import * as React from "react";
-import { HyperliquidService } from "~/lib/hyperliquid";
+import { useHyperliquidService } from "~/providers/HyperliquidProvider";
 import { PositionOrderChart } from "~/components/PositionOrderChart";
 import { formatPrice } from "~/lib/price-decimals";
 import { useLivePrice } from "~/hooks/useLivePrice";
@@ -25,7 +25,7 @@ interface PositionCardProps {
 }
 
 export function PositionCard({ position, orders, takerFee, makerFee, accountValue }: PositionCardProps) {
-  const hlService = new HyperliquidService();
+  const hlService = useHyperliquidService();
   const { price: livePrice } = useLivePrice(position.coin);
   
   const sizeNum = Math.abs(parseFloat(position.szi));

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { HyperliquidService } from "~/lib/hyperliquid";
+import { useHyperliquidService } from "~/providers/HyperliquidProvider";
 import { useRealtimePnL } from "~/hooks/useRealtimePnL";
 
 interface Position {
@@ -14,7 +14,7 @@ interface RealtimePnLSummaryProps {
 }
 
 export function RealtimePnLSummary({ positions }: RealtimePnLSummaryProps) {
-  const hlService = new HyperliquidService();
+  const hlService = useHyperliquidService();
   const { totalPnL } = useRealtimePnL(positions);
   
   // Calculate total notional
