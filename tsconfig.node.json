@@ -3,6 +3,8 @@
   "include": ["vite.config.ts", "react-router.config.ts"],
   "compilerOptions": {
     "composite": true,
-    "types": ["node"]
+    "types": ["node"],
+    "module": "ESNext",
+    "moduleResolution": "bundler"
   }
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { HyperliquidService } from '~/services/hyperliquid';
+import { HyperliquidService } from '~/lib/hyperliquid';
 
 interface HyperliquidStore {
   service: HyperliquidService;
