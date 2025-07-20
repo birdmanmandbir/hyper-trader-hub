@@ -1,5 +1,5 @@
 import * as React from "react";
-import { usePrices } from "~/providers/PriceProvider";
+import { usePrices } from "~/stores/priceStore";
 
 interface Position {
   coin: string;

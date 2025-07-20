@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { type BalanceInfo } from "~/lib/hyperliquid";
-import { useHyperliquidService } from "~/providers/HyperliquidProvider";
+import { useHyperliquidService } from "~/stores/hyperliquidStore";
 import { PositionCard } from "~/components/PositionCard";
 import { RealtimePnLSummary } from "~/components/RealtimePnLSummary";
 import { DEFAULT_ADVANCED_SETTINGS } from "~/lib/constants";

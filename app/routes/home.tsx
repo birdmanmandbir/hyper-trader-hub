@@ -7,7 +7,7 @@ import { getSessionUser, destroySession } from "~/lib/auth.server";
 import { getBalanceData } from "~/services/balance.server";
 import { getUserSettings } from "~/db/client.server";
 import { getDb } from "~/db/client.server";
-import { useHyperliquidService } from "~/providers/HyperliquidProvider";
+import { useHyperliquidService } from "~/stores/hyperliquidStore";
 import { useAutoRefresh } from "~/hooks/useAutoRefresh";
 
 export function meta({}: Route.MetaArgs) {

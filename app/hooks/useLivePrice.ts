@@ -1,5 +1,5 @@
 import * as React from "react";
-import { usePrices } from "~/providers/PriceProvider";
+import { usePrices } from "~/stores/priceStore";
 import { formatPrice } from "~/lib/price-decimals";
 
 export function useLivePrice(coin: string) {

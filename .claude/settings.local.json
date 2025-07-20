@@ -10,7 +10,8 @@
       "Bash(mkdir:*)",
       "WebFetch(domain:bundlephobia.com)",
       "WebFetch(domain:developers.cloudflare.com)",
-      "WebFetch(domain:reactrouter.com)"
+      "WebFetch(domain:reactrouter.com)",
+      "Bash(sed:*)"
     ],
     "deny": []
   }

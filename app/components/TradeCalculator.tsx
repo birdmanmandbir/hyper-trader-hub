@@ -4,7 +4,7 @@ import { Button } from "~/components/ui/button";
 import { Switch } from "~/components/ui/switch";
 import { Input } from "~/components/ui/input";
 import { CryptoCombobox } from "~/components/CryptoCombobox";
-import { useHyperliquidService } from "~/providers/HyperliquidProvider";
+import { useHyperliquidService } from "~/stores/hyperliquidStore";
 import { useLivePrice } from "~/hooks/useLivePrice";
 import { Copy, Calculator } from "lucide-react";
 import { formatPrice, getPriceDecimals } from "~/lib/price-decimals";

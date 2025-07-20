@@ -8,8 +8,7 @@ import {
 } from "react-router";
 import { Toaster } from "sonner";
 import { Navigation } from "~/components/navigation";
-import { PriceProvider } from "~/providers/PriceProvider";
-import { HyperliquidProvider } from "~/providers/HyperliquidProvider";
+import { PriceStoreInitializer } from "~/components/PriceStoreInitializer.client";
 
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -50,11 +49,8 @@ export default function App() {
     <>
       <div className="min-h-screen bg-background">
         <Navigation />
-        <HyperliquidProvider>
-          <PriceProvider>
-            <Outlet />
-          </PriceProvider>
-        </HyperliquidProvider>
+        <Outlet />
+        <PriceStoreInitializer />
       </div>
       <Toaster 
         position="bottom-right"

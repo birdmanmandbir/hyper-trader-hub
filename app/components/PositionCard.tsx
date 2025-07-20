@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useHyperliquidService } from "~/providers/HyperliquidProvider";
+import { useHyperliquidService } from "~/stores/hyperliquidStore";
 import { PositionOrderChart } from "~/components/PositionOrderChart";
 import { formatPrice } from "~/lib/price-decimals";
 import { useLivePrice } from "~/hooks/useLivePrice";

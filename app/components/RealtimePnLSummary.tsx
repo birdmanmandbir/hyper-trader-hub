@@ -1,5 +1,5 @@
 import * as React from "react";
-import { useHyperliquidService } from "~/providers/HyperliquidProvider";
+import { useHyperliquidService } from "~/stores/hyperliquidStore";
 import { useRealtimePnL } from "~/hooks/useRealtimePnL";
 
 interface Position {

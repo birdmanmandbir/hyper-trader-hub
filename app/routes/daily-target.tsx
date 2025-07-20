@@ -9,7 +9,7 @@ import { requireAuth } from "~/lib/auth.server";
 import { getBalanceData } from "~/services/balance.server";
 import { getUserSettings, upsertUserSettings, getDailyBalance } from "~/db/client.server";
 import { getDb } from "~/db/client.server";
-import { useHyperliquidService } from "~/providers/HyperliquidProvider";
+import { useHyperliquidService } from "~/stores/hyperliquidStore";
 import { useAutoRefresh } from "~/hooks/useAutoRefresh";
 import { TradingTimeBar } from "~/components/TradingTimeBar";
 import { TradeCalculator } from "~/components/TradeCalculator";
