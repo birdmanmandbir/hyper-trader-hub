@@ -11,8 +11,12 @@
       "WebFetch(domain:bundlephobia.com)",
       "WebFetch(domain:developers.cloudflare.com)",
       "WebFetch(domain:reactrouter.com)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(ls:*)",
+      "Bash(mv:*)"
     ],
-    "deny": []
+    "deny": [
+      "Bash(git push:*)"
+    ]
   }
 }

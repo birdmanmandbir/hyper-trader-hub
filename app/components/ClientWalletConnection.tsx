@@ -1,5 +1,6 @@
-import { Web3Provider } from "~/components/Web3Provider.client";
-import { WalletConnector } from "~/components/WalletConnector.client";
+import * as React from "react";
+import { Web3Provider } from "~/components/Web3Provider";
+import { WalletConnector } from "~/components/WalletConnector";
 
 export function ClientWalletConnection() {
   return (

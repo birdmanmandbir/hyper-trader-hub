@@ -2,16 +2,17 @@ import { createConfig, http } from 'wagmi';
 import { mainnet } from 'wagmi/chains';
 import { injected } from 'wagmi/connectors';
 
-// Configure wagmi (client-only)
+// Configure wagmi with SSR support
 export const config = createConfig({
   chains: [mainnet],
+  ssr: true, // Enable SSR mode
   connectors: [
     injected({
       target() {
         return {
           id: 'metamask',
           name: 'MetaMask',
-          provider: window.ethereum,
+          provider: typeof window !== 'undefined' ? window.ethereum : undefined,
         };
       },
     }),
@@ -20,7 +21,7 @@ export const config = createConfig({
         return {
           id: 'rabby',
           name: 'Rabby Wallet',
-          provider: window.rabby,
+          provider: typeof window !== 'undefined' ? window.rabby : undefined,
         };
       },
     }),

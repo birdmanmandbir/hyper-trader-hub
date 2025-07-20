@@ -140,6 +140,14 @@ export default function DailyTarget() {
   // Check if loss threshold is hit
   const actualLossPercentage = startOfDayAccountValue > 0 ? (dailyProfit / startOfDayAccountValue) * 100 : 0;
   const lossThresholdHit = actualLossPercentage < -(advancedSettings.lossThreshold);
+  
+  // Calculate unconfirmed streaks
+  const unconfirmedAchievementStreak = isTargetAchieved 
+    ? (streakData?.currentAchievementStreak || 0) + 1 
+    : 0;
+  const unconfirmedNoLossStreak = !lossThresholdHit 
+    ? (streakData?.currentNoLossStreak || 0) + 1 
+    : 0;
 
   return (
     <div className="container mx-auto p-6">
@@ -351,6 +359,8 @@ export default function DailyTarget() {
             streakData={streakData}
             isTargetAchieved={isTargetAchieved}
             hasSignificantLoss={lossThresholdHit}
+            unconfirmedAchievementStreak={unconfirmedAchievementStreak}
+            unconfirmedNoLossStreak={unconfirmedNoLossStreak}
           />
 
           {/* Trading Time Indicator */}

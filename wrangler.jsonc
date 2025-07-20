@@ -54,7 +54,7 @@
     "crons": [
       "0 0 * * *",      // Daily reset at 00:00 UTC
       "*/30 * * * *",   // Position snapshots every 30 minutes
-      "0 3 * * 0"       // Weekly cleanup on Sunday at 3 AM UTC
+      "0 3 * * SUN"     // Weekly cleanup on Sunday at 3 AM UTC
     ]
   }
   /**

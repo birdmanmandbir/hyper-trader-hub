@@ -20,4 +20,18 @@ export default {
       cloudflare: { env, ctx },
     });
   },
+  async scheduled(event, env, ctx) {
+    const { cron } = event;
+    
+    // Import cron handlers dynamically to avoid loading them during normal requests
+    const { handleCronTrigger } = await import("../app/services/cron.server");
+    
+    try {
+      await handleCronTrigger(cron, env, ctx);
+    } catch (error) {
+      console.error(`Error handling cron ${cron}:`, error);
+      // Re-throw to mark the cron execution as failed
+      throw error;
+    }
+  },
 } satisfies ExportedHandler<Env>;

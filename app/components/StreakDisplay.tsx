@@ -7,9 +7,17 @@ interface StreakDisplayProps {
   streakData: StreakData | null;
   isTargetAchieved: boolean;
   hasSignificantLoss: boolean;
+  unconfirmedAchievementStreak?: number;
+  unconfirmedNoLossStreak?: number;
 }
 
-export function StreakDisplay({ streakData, isTargetAchieved, hasSignificantLoss }: StreakDisplayProps) {
+export function StreakDisplay({ 
+  streakData, 
+  isTargetAchieved, 
+  hasSignificantLoss,
+  unconfirmedAchievementStreak,
+  unconfirmedNoLossStreak
+}: StreakDisplayProps) {
   if (!streakData) return null;
 
   return (
@@ -33,7 +41,14 @@ export function StreakDisplay({ streakData, isTargetAchieved, hasSignificantLoss
                 <span className="font-medium">Target Achievement Streak</span>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold">{streakData.currentAchievementStreak}</p>
+                <div className="flex items-center gap-2 justify-end">
+                  <p className="text-2xl font-bold">{streakData.currentAchievementStreak}</p>
+                  {unconfirmedAchievementStreak !== undefined && unconfirmedAchievementStreak !== streakData.currentAchievementStreak && (
+                    <span className="text-lg text-muted-foreground">
+                      → {unconfirmedAchievementStreak}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">Best: {streakData.bestAchievementStreak}</p>
               </div>
             </div>
@@ -60,7 +75,14 @@ export function StreakDisplay({ streakData, isTargetAchieved, hasSignificantLoss
                 <span className="font-medium">No Significant Loss Streak</span>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold">{streakData.currentNoLossStreak}</p>
+                <div className="flex items-center gap-2 justify-end">
+                  <p className="text-2xl font-bold">{streakData.currentNoLossStreak}</p>
+                  {unconfirmedNoLossStreak !== undefined && unconfirmedNoLossStreak !== streakData.currentNoLossStreak && (
+                    <span className="text-lg text-muted-foreground">
+                      → {unconfirmedNoLossStreak}
+                    </span>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground">Best: {streakData.bestNoLossStreak}</p>
               </div>
             </div>

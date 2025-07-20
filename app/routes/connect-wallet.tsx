@@ -1,6 +1,6 @@
 import { redirect, type ActionFunctionArgs } from "react-router";
 import { createSession, sessionCookie, initializeUserData } from "~/lib/auth.server";
-import * as React from "react";
+import { ClientWalletConnection } from "~/components/ClientWalletConnection";
 
 export async function action({ request, context }: ActionFunctionArgs) {
   const formData = await request.formData();
@@ -25,36 +25,6 @@ export async function action({ request, context }: ActionFunctionArgs) {
   });
 }
 
-// Client-only component that handles wallet connection
-const ClientWalletConnection = React.lazy(() => 
-  import("~/components/ClientWalletConnection").then(m => ({ 
-    default: m.ClientWalletConnection 
-  }))
-);
-
 export default function ConnectWallet() {
-  const [isClient, setIsClient] = React.useState(false);
-  
-  React.useEffect(() => {
-    setIsClient(true);
-  }, []);
-  
-  const loadingContent = (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="text-center">
-        <h2 className="text-2xl font-bold mb-4">Connect Your Wallet</h2>
-        <p className="text-muted-foreground">Loading wallet connection...</p>
-      </div>
-    </div>
-  );
-  
-  if (!isClient) {
-    return loadingContent;
-  }
-  
-  return (
-    <React.Suspense fallback={loadingContent}>
-      <ClientWalletConnection />
-    </React.Suspense>
-  );
+  return <ClientWalletConnection />;
 }

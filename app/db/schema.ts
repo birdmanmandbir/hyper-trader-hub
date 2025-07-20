@@ -14,12 +14,10 @@ export const userSessions = sqliteTable("user_sessions", {
   userAddress: text("user_address").notNull(),
   createdAt: integer("created_at").default(sql`(unixepoch())`),
   expiresAt: integer("expires_at").notNull(),
-}, (table) => {
-  return {
-    userAddressIdx: index("idx_user_address").on(table.userAddress),
-    expiresIdx: index("idx_expires").on(table.expiresAt),
-  };
-});
+}, (table) => [
+  index("idx_user_address").on(table.userAddress),
+  index("idx_expires").on(table.expiresAt),
+]);
 
 // User checklists for trading criteria
 export const userChecklists = sqliteTable("user_checklists", {
@@ -27,11 +25,9 @@ export const userChecklists = sqliteTable("user_checklists", {
   checklistType: text("checklist_type").notNull(), // 'entry' or 'exit'
   items: text("items").notNull(), // JSON array
   updatedAt: integer("updated_at").default(sql`(unixepoch())`),
-}, (table) => {
-  return {
-    pk: uniqueIndex("pk_user_checklist").on(table.userAddress, table.checklistType),
-  };
-});
+}, (table) => [
+  uniqueIndex("pk_user_checklist").on(table.userAddress, table.checklistType),
+]);
 
 export const userSettings = sqliteTable("user_settings", {
   userAddress: text("user_address").primaryKey(),
@@ -41,7 +37,7 @@ export const userSettings = sqliteTable("user_settings", {
   timezoneName: text("timezone_name").default('UTC'),
   createdAt: integer("created_at").default(sql`(unixepoch())`),
   updatedAt: integer("updated_at").default(sql`(unixepoch())`),
-});
+}, (table) => []);
 
 export const dailyBalances = sqliteTable("daily_balances", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -60,12 +56,10 @@ export const dailyBalances = sqliteTable("daily_balances", {
   significantLoss: integer("significant_loss").default(0), // boolean: 0 or 1
   createdAt: integer("created_at").default(sql`(unixepoch())`),
   updatedAt: integer("updated_at").default(sql`(unixepoch())`),
-}, (table) => {
-  return {
-    userDateIdx: index("idx_user_date").on(table.userAddress, table.userDate),
-    uniqueUserDate: uniqueIndex("unique_user_date").on(table.userAddress, table.date),
-  };
-});
+}, (table) => [
+  index("idx_user_date").on(table.userAddress, table.userDate),
+  uniqueIndex("unique_user_date").on(table.userAddress, table.date),
+]);
 
 export const tradingSessions = sqliteTable("trading_sessions", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -81,11 +75,9 @@ export const tradingSessions = sqliteTable("trading_sessions", {
   pnlPercentage: real("pnl_percentage"),
   tradesCount: integer("trades_count").default(0),
   createdAt: integer("created_at").default(sql`(unixepoch())`),
-}, (table) => {
-  return {
-    userSessionIdx: index("idx_user_session").on(table.userAddress, table.sessionDate),
-  };
-});
+}, (table) => [
+  index("idx_user_session").on(table.userAddress, table.sessionDate),
+]);
 
 export const positionSnapshots = sqliteTable("position_snapshots", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -97,11 +89,9 @@ export const positionSnapshots = sqliteTable("position_snapshots", {
   leverage: real("leverage").notNull(),
   marginUsed: real("margin_used").notNull(),
   createdAt: integer("created_at").default(sql`(unixepoch())`),
-}, (table) => {
-  return {
-    userTimeIdx: index("idx_user_time").on(table.userAddress, table.snapshotTime),
-  };
-});
+}, (table) => [
+  index("idx_user_time").on(table.userAddress, table.snapshotTime),
+]);
 
 export const tradeHistory = sqliteTable("trade_history", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -117,11 +107,9 @@ export const tradeHistory = sqliteTable("trade_history", {
   pnlPercentage: real("pnl_percentage"),
   status: text("status").default('open'), // 'open', 'closed', 'liquidated'
   createdAt: integer("created_at").default(sql`(unixepoch())`),
-}, (table) => {
-  return {
-    userTradeDateIdx: index("idx_user_trade_date").on(table.userAddress, table.tradeDate),
-  };
-});
+}, (table) => [
+  index("idx_user_trade_date").on(table.userAddress, table.tradeDate),
+]);
 
 export const streakData = sqliteTable("streak_data", {
   userAddress: text("user_address").primaryKey(),
@@ -137,7 +125,7 @@ export const streakData = sqliteTable("streak_data", {
   totalTargetAchievedDays: integer("total_target_achieved_days").default(0),
   totalSignificantLossDays: integer("total_significant_loss_days").default(0),
   updatedAt: integer("updated_at").default(sql`(unixepoch())`),
-});
+}, (table) => []);
 
 export const cronLogs = sqliteTable("cron_logs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -147,11 +135,9 @@ export const cronLogs = sqliteTable("cron_logs", {
   usersProcessed: integer("users_processed").default(0),
   executionTimeMs: integer("execution_time_ms"),
   createdAt: integer("created_at").default(sql`(unixepoch())`),
-}, (table) => {
-  return {
-    jobTimeIdx: index("idx_job_time").on(table.jobName, table.createdAt),
-  };
-});
+}, (table) => [
+  index("idx_job_time").on(table.jobName, table.createdAt),
+]);
 
 // Type exports
 export type UserSession = typeof userSessions.$inferSelect;
