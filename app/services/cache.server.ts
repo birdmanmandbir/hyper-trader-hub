@@ -64,5 +64,8 @@ export async function invalidateCache(key: string): Promise<void> {
  * Create a cache key for user-specific data
  */
 export function getUserCacheKey(userAddress: string, dataType: string): string {
+  if (!userAddress) {
+    throw new Error('User address is required for cache key');
+  }
   return `user:${userAddress.toLowerCase()}:${dataType}`;
 }

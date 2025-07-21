@@ -8,7 +8,11 @@ export function getDb(env: Env) {
 }
 
 // Type-safe query helpers
-export async function getUserSettings(db: ReturnType<typeof getDb>, userAddress: string) {
+export async function getUserSettings(db: ReturnType<typeof getDb>, userAddress: string | null) {
+  if (!userAddress) {
+    return null;
+  }
+  
   const result = await db
     .select()
     .from(schema.userSettings)
