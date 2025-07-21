@@ -5,6 +5,7 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLoaderData,
 } from "react-router";
 import { Toaster } from "sonner";
 import { Navigation } from "~/components/navigation";
@@ -13,6 +14,7 @@ import { createSession, sessionCookie, destroySession, initializeUserData } from
 
 import type { Route } from "./+types/root";
 import "./app.css";
+import { getSessionUser } from "~/lib/auth.server";
 
 export const links: Route.LinksFunction = () => [
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
@@ -43,6 +45,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </body>
     </html>
   );
+}
+
+// Load user session
+export async function loader({ request, context }: Route.LoaderArgs) {
+  const userAddress = await getSessionUser(request, context.cloudflare.env);
+  return { userAddress };
 }
 
 // Handle wallet connection/disconnection
@@ -94,9 +102,11 @@ export async function action({ request, context }: Route.ActionArgs) {
 }
 
 export default function App() {
+  const { userAddress } = useLoaderData<typeof loader>();
+  
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
+      <Navigation userAddress={userAddress} />
       <Outlet />
       <PriceStoreInitializer />
       <Toaster

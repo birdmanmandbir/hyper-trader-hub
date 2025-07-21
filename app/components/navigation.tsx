@@ -1,7 +1,11 @@
 import { NavLink } from "react-router";
-import { WalletConnection } from './WalletConnection';
+import { WalletInput } from './WalletInput';
 
-export function Navigation() {
+interface NavigationProps {
+  userAddress?: string | null;
+}
+
+export function Navigation({ userAddress }: NavigationProps) {
   const navItems = [
     { path: "/", label: "Overview", end: true },
     { path: "/daily-target", label: "Daily Target" },
@@ -33,9 +37,9 @@ export function Navigation() {
             </div>
           </div>
           
-          {/* Wallet Connection */}
+          {/* Wallet Input */}
           <div className="flex items-center">
-            <WalletConnection />
+            <WalletInput connectedAddress={userAddress} />
           </div>
         </div>
 
