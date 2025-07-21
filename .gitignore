@@ -15,6 +15,9 @@ worker-configuration.d.ts
 .env.local
 .env.production
 
+# Claude settings
+.claude/settings.local.json
+
 # Database
 drizzle/
 *.sqlite
