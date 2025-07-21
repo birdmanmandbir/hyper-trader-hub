@@ -40,7 +40,7 @@ export async function requireAuth(
   const userAddress = await getSessionUser(request, env);
   
   if (!userAddress) {
-    throw redirect("/connect-wallet");
+    throw redirect("/");
   }
   
   return userAddress;
@@ -61,8 +61,21 @@ export async function createSession(
  * Destroy session (logout)
  */
 export async function destroySession(
-  request: Request
+  request: Request,
+  env: Env
 ): Promise<Headers> {
+  // Get the session ID from cookie
+  const cookieHeader = request.headers.get("Cookie");
+  const sessionId = await sessionCookie.parse(cookieHeader);
+  
+  if (sessionId) {
+    // Delete session from database
+    const db = getDb(env);
+    await db
+      .delete(schema.userSessions)
+      .where(eq(schema.userSessions.id, sessionId));
+  }
+  
   const headers = new Headers();
   headers.append("Set-Cookie", await sessionCookie.serialize("", { maxAge: 0 }));
   return headers;

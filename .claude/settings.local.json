@@ -3,14 +3,15 @@
     "allow": [
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:bundlephobia.com)",
+      "WebFetch(domain:developers.cloudflare.com)",
+      "WebFetch(domain:reactrouter.com)",
+      "WebFetch(domain:wagmi.sh)",
       "Bash(find:*)",
       "Bash(bun add:*)",
       "Bash(git add:*)",
       "Bash(grep:*)",
       "Bash(mkdir:*)",
-      "WebFetch(domain:bundlephobia.com)",
-      "WebFetch(domain:developers.cloudflare.com)",
-      "WebFetch(domain:reactrouter.com)",
       "Bash(sed:*)",
       "Bash(ls:*)",
       "Bash(mv:*)"

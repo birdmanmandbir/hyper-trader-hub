@@ -1,41 +1,13 @@
-import { createConfig, http } from 'wagmi';
-import { mainnet } from 'wagmi/chains';
-import { injected } from 'wagmi/connectors';
+import { getDefaultConfig } from '@rainbow-me/rainbowkit';
+import { arbitrum, base, mainnet, optimism, polygon } from 'wagmi/chains';
+import { cookieStorage, createStorage } from 'wagmi';
 
-// Configure wagmi with SSR support
-export const config = createConfig({
-  chains: [mainnet],
-  ssr: true, // Enable SSR mode
-  connectors: [
-    injected({
-      target() {
-        return {
-          id: 'metamask',
-          name: 'MetaMask',
-          provider: typeof window !== 'undefined' ? window.ethereum : undefined,
-        };
-      },
-    }),
-    injected({
-      target() {
-        return {
-          id: 'rabby',
-          name: 'Rabby Wallet',
-          provider: typeof window !== 'undefined' ? window.rabby : undefined,
-        };
-      },
-    }),
-    injected(), // Generic injected connector for other wallets
-  ],
-  transports: {
-    [mainnet.id]: http(),
-  },
+export const config = getDefaultConfig({
+  appName: 'TraderHub',
+  projectId: 'c517873f18d28be9920ec039b1b3b601',
+  chains: [mainnet, polygon, optimism, arbitrum, base],
+  ssr: true,
+  storage: createStorage({
+    storage: cookieStorage,
+  }),
 });
-
-// Extend window type for wallet providers
-declare global {
-  interface Window {
-    ethereum?: any;
-    rabby?: any;
-  }
-}

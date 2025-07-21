@@ -1,4 +1,5 @@
 import { NavLink } from "react-router";
+import { WalletConnection } from './WalletConnection';
 
 export function Navigation() {
   const navItems = [
@@ -30,6 +31,11 @@ export function Navigation() {
                 </NavLink>
               ))}
             </div>
+          </div>
+          
+          {/* Wallet Connection */}
+          <div className="flex items-center">
+            <WalletConnection />
           </div>
         </div>
 
