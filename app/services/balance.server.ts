@@ -70,35 +70,6 @@ export class BalanceService {
     
     // Create new daily balance record
     const accountValue = parseFloat(balance.accountValue);
-    const hlService = new HyperliquidService();
-    
-    // Parallelize price fetching (no caching - prices should be real-time)
-    const [allPrices, hypePrice] = await Promise.all([
-      hlService.infoClient.allMids(),
-      hlService.getHypePrice()
-    ]);
-    
-    // Calculate spot value
-    const spotValue = balance.spotBalances.reduce((total, bal) => {
-      const amount = parseFloat(bal.total);
-      if (amount === 0) return total;
-      
-      if (bal.coin === "USDC") {
-        return total + amount;
-      }
-      
-      const price = allPrices[bal.coin];
-      if (price) {
-        return total + amount * parseFloat(price);
-      }
-      
-      return total;
-    }, 0);
-    
-    // Calculate staking value
-    const stakingValue = balance.staking 
-      ? (parseFloat(balance.staking.totalStaked) + parseFloat(balance.staking.pendingWithdrawals)) * hypePrice 
-      : 0;
     
     await createDailyBalance(db, {
       userAddress: this.userAddress,
@@ -107,8 +78,8 @@ export class BalanceService {
       startBalance: accountValue,
       accountValue,
       perpsValue: accountValue,
-      spotValue,
-      stakingValue,
+      spotValue: 0, // Not tracking spot anymore
+      stakingValue: 0, // Not tracking staking anymore
     });
   }
 }

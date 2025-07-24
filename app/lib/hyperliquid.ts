@@ -1,10 +1,5 @@
 import * as hl from "@nktkas/hyperliquid";
 
-export interface StakingInfo {
-  totalStaked: string;
-  pendingWithdrawals: string;
-}
-
 export interface Order {
   coin: string;
   oid: string;
@@ -43,13 +38,6 @@ export interface BalanceInfo {
     maintMarginReq?: string;
   }>;
   orders?: Order[];
-  // Deprecated - kept for compatibility
-  spotBalances?: Array<{
-    coin: string;
-    total: string;
-    hold: string;
-  }>;
-  staking?: StakingInfo;
 }
 
 export class HyperliquidService {
@@ -132,24 +120,10 @@ export class HyperliquidService {
         totalNotionalPosition: marginSummary.totalNtlPos,
         perpetualPositions,
         orders,
-        spotBalances: [], // Placeholder for compatibility
-        staking: undefined, // Placeholder for compatibility
       };
     } catch (error) {
       console.error("Error fetching user balances:", error);
       throw error;
-    }
-  }
-
-
-  async getHypePrice(): Promise<number> {
-    try {
-      const mids = await this.infoClient.allMids();
-      const hypePrice = mids.HYPE;
-      return hypePrice ? parseFloat(hypePrice) : 0;
-    } catch (error) {
-      console.warn("Error fetching HYPE price:", error);
-      return 0;
     }
   }
 }

@@ -179,27 +179,10 @@ async function dailyReset(db: ReturnType<typeof getDb>, env: Env) {
       if (!todayBalance) {
         const utcDate = new Date().toISOString().split('T')[0];
         
-        // Calculate spot value from spot balances
-        let spotValue = 0;
-        if (balance.spotBalances && balance.spotBalances.length > 0) {
-          for (const spot of balance.spotBalances) {
-            if (spot.coin === "USDC") {
-              spotValue += parseFloat(spot.total || "0");
-            }
-            // For other coins, we'd need price data to calculate USD value
-          }
-        }
-        
-        // Calculate staking value
-        let stakingValue = 0;
-        if (balance.staking) {
-          stakingValue = parseFloat(balance.staking.totalStaked || "0") + 
-                         parseFloat(balance.staking.pendingWithdrawals || "0");
-        }
-        
-        // Calculate perps value (account value minus spot value and staking value)
-        // This is a simplified calculation - in reality, perps value would be calculated from positions
-        const perpsValue = currentAccountValue - spotValue - stakingValue;
+        // For perps-only focus, account value equals perps value
+        const perpsValue = currentAccountValue;
+        const spotValue = 0; // Not tracking spot anymore
+        const stakingValue = 0; // Not tracking staking anymore
         
         await db.insert(dailyBalances).values({
           userAddress,
