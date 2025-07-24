@@ -14,7 +14,8 @@
       "Bash(mkdir:*)",
       "Bash(sed:*)",
       "Bash(ls:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "WebFetch(domain:www.better-auth.com)"
     ],
     "deny": []
   }
