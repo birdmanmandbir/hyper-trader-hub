@@ -11,7 +11,7 @@
   // Add your Cloudflare account ID here if you have one
   // "account_id": "YOUR_ACCOUNT_ID",
   "vars": {
-    // Add any environment variables here
+    "OAUTH_GITHUB_CLIENT_ID": "Ov23liUbpahEwBZ4EZqX"
   },
   "observability": {
     "enabled": true
