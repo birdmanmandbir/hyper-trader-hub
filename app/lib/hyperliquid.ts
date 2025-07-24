@@ -30,11 +30,6 @@ export interface BalanceInfo {
   withdrawable: string;
   totalMarginUsed: string;
   totalNotionalPosition: string;
-  spotBalances: Array<{
-    coin: string;
-    total: string;
-    hold: string;
-  }>;
   perpetualPositions: Array<{
     coin: string;
     szi: string;
@@ -48,8 +43,14 @@ export interface BalanceInfo {
     liquidationPx?: string;
     maintMarginReq?: string;
   }>;
-  staking?: StakingInfo;
   orders?: Order[];
+  // Deprecated - kept for compatibility
+  spotBalances?: Array<{
+    coin: string;
+    total: string;
+    hold: string;
+  }>;
+  staking?: StakingInfo;
 }
 
 export class HyperliquidService {
@@ -67,15 +68,10 @@ export class HyperliquidService {
         throw new Error("Invalid Ethereum address format");
       }
 
-      // Fetch both perps and spot state in parallel
-      const [perpsState, spotState] = await Promise.all([
-        this.infoClient.clearinghouseState({ 
-          user: userAddress as `0x${string}`
-        }),
-        this.infoClient.spotClearinghouseState({ 
-          user: userAddress as `0x${string}`
-        })
-      ]);
+      // Fetch only perps state
+      const perpsState = await this.infoClient.clearinghouseState({ 
+        user: userAddress as `0x${string}`
+      });
 
       // Extract balance information
       const marginSummary = perpsState.marginSummary;
@@ -97,38 +93,7 @@ export class HyperliquidService {
           maintMarginReq: pos.position.maintMarginReq || "0.0625",
         }));
 
-      // Format spot balances
-      const spotBalances = spotState.balances
-        .filter((bal) => parseFloat(bal.total) > 0)
-        .map((bal) => ({
-          coin: bal.coin,
-          total: bal.total,
-          hold: bal.hold,
-        }));
 
-      // Fetch staking information
-      let staking: StakingInfo | undefined;
-      try {
-        const [delegations, delegatorSummary] = await Promise.all([
-          this.infoClient.delegations({ 
-            user: userAddress as `0x${string}` 
-          }),
-          this.infoClient.delegatorSummary({ 
-            user: userAddress as `0x${string}` 
-          })
-        ]);
-
-        const totalStaked = delegatorSummary.delegated || "0";
-        const pendingWithdrawals = delegatorSummary.totalPendingWithdrawal || "0";
-
-        staking = {
-          totalStaked,
-          pendingWithdrawals
-        };
-      } catch (stakingError) {
-        console.warn("Error fetching staking data:", stakingError);
-        // Continue without staking data if it fails
-      }
 
       // Fetch open orders using frontendOpenOrders for more details
       let orders: Order[] = [];
@@ -166,10 +131,10 @@ export class HyperliquidService {
         withdrawable: perpsState.withdrawable,
         totalMarginUsed: marginSummary.totalMarginUsed,
         totalNotionalPosition: marginSummary.totalNtlPos,
-        spotBalances,
         perpetualPositions,
-        staking,
         orders,
+        spotBalances: [], // Placeholder for compatibility
+        staking: undefined, // Placeholder for compatibility
       };
     } catch (error) {
       console.error("Error fetching user balances:", error);

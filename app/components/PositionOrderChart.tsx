@@ -284,15 +284,18 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
               let totalTpSize = 0;
               let weightedTpPrice = 0;
               
-              tpOrders.forEach(tpOrder => {
+              tpOrders.forEach((tpOrder, idx) => {
                 const tpPrice = parseFloat(tpOrder.limitPx);
                 const tpSize = parseFloat(tpOrder.sz);
                 totalTpSize += tpSize;
                 weightedTpPrice += tpPrice * tpSize;
                 
                 const tpProfitPerCoin = isLong ? (tpPrice - entry) : (entry - tpPrice);
-                totalTpProfitBeforeFees += tpProfitPerCoin * tpSize;
-                totalTpExitFees += (tpPrice * tpSize) * (makerFee / 100);
+                const tpProfitThisOrder = tpProfitPerCoin * tpSize;
+                const tpExitFeeThisOrder = (tpPrice * tpSize) * (makerFee / 100);
+                
+                totalTpProfitBeforeFees += tpProfitThisOrder;
+                totalTpExitFees += tpExitFeeThisOrder;
               });
               
               // Calculate weighted average TP price for display

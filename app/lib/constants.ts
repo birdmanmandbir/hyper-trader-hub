@@ -3,8 +3,8 @@ import { getDefaultLeverage } from "./crypto-config";
 
 // Default values for Advanced Settings
 export const DEFAULT_ADVANCED_SETTINGS: AdvancedSettings = {
-  takerFee: 0.04,
-  makerFee: 0.012,
+  takerFee: 0.0450,
+  makerFee: 0.0150,
   streakThreshold: 90,
   lossThreshold: 30,
   preferredTradingTimes: [],

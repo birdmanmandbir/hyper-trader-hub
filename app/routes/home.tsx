@@ -9,6 +9,9 @@ import { getUserSettings } from "~/db/client.server";
 import { getDb } from "~/db/client.server";
 import { useHyperliquidService } from "~/stores/hyperliquidStore";
 import { useAutoRefresh } from "~/hooks/useAutoRefresh";
+import { useRealtimePnL } from "~/hooks/useRealtimePnL";
+import { calculateExpectedPnL } from "~/services/expected-pnl.server";
+import { DEFAULT_ADVANCED_SETTINGS } from "~/lib/constants";
 
 export function meta({ }: Route.MetaArgs) {
   return [
@@ -46,18 +49,33 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     timezoneOffset
   );
 
+  // Calculate expected P&L on server side
+  let expectedPnL = null;
+  if (balance && balance.perpetualPositions.length > 0) {
+    const advancedSettings = settings?.advancedSettings 
+      ? JSON.parse(settings.advancedSettings) 
+      : DEFAULT_ADVANCED_SETTINGS;
+    
+    expectedPnL = calculateExpectedPnL(
+      balance.perpetualPositions,
+      balance.orders,
+      advancedSettings
+    );
+  }
+
   return {
     userAddress,
     balance,
     dailyStartBalance,
     timestamp,
     settings,
+    expectedPnL,
   };
 }
 
 
 export default function Home() {
-  const { userAddress, balance, settings } = useLoaderData<typeof loader>();
+  const { userAddress, balance, settings, expectedPnL } = useLoaderData<typeof loader>();
   
   // Show welcome message when not connected
   if (!userAddress) {
@@ -79,40 +97,47 @@ export default function Home() {
 
   // Auto-refresh balance data every 30 seconds
   const { secondsUntilRefresh, isRefreshing } = useAutoRefresh(30000);
+  
+  // Get realtime P&L
+  const { totalPnL: realtimePnL } = useRealtimePnL(balance?.perpetualPositions || []);
+  
+  // Calculate realtime total value
+  const realtimeTotalValue = React.useMemo(() => {
+    if (!balance) return 0;
+    
+    const baseValue = parseFloat(balance.accountValue);
+    const oldUnrealizedPnL = balance.perpetualPositions.reduce((sum, pos) => 
+      sum + parseFloat(pos.unrealizedPnl || "0"), 0
+    );
+    
+    return baseValue - oldUnrealizedPnL + realtimePnL;
+  }, [balance, realtimePnL]);
 
-  // Update document title when balance changes (client-side only)
+  // Update document title with realtime values (client-side only)
   React.useEffect(() => {
     if (typeof document === 'undefined') return; // Skip on server
 
     if (balance) {
       const hasPositions = balance.perpetualPositions && balance.perpetualPositions.length > 0;
 
-      if (hasPositions) {
-        // Calculate total P&L
-        const totalPnL = balance.perpetualPositions.reduce((sum, pos) =>
-          sum + parseFloat(pos.unrealizedPnl || "0"), 0
-        );
+      if (hasPositions && realtimePnL !== 0) {
+        // Format title with realtime P&L and total value
+        const pnlSign = realtimePnL >= 0 ? '+' : '';
+        const pnlFormatted = hlService.formatUsdValue(realtimePnL, 2).replace('$', '');
+        const valueFormatted = hlService.formatUsdValue(realtimeTotalValue).replace('$', '');
 
-        // Get account value
-        const accountValue = parseFloat(balance.accountValue || "0");
-
-        // Format title with P&L and account value
-        const pnlSign = totalPnL >= 0 ? '+' : '';
-        const pnlFormatted = hlService.formatUsdValue(totalPnL, 2).replace('$', '');
-        const accountFormatted = hlService.formatUsdValue(accountValue).replace('$', '');
-
-        document.title = `${pnlSign}$${pnlFormatted} | $${accountFormatted} - HTH`;
-      } else if (parseFloat(balance.accountValue) > 0) {
+        document.title = `${pnlSign}$${pnlFormatted} | $${valueFormatted} - HTH`;
+      } else if (realtimeTotalValue > 0) {
         // No positions but has account value
-        const accountFormatted = hlService.formatUsdValue(balance.accountValue).replace('$', '');
-        document.title = `$${accountFormatted} - HTH`;
+        const valueFormatted = hlService.formatUsdValue(realtimeTotalValue).replace('$', '');
+        document.title = `$${valueFormatted} - HTH`;
       } else {
         document.title = "Hyper Trader Hub";
       }
     } else {
       document.title = "Hyper Trader Hub";
     }
-  }, [balance]);
+  }, [balance, realtimePnL, realtimeTotalValue]);
 
 
   return (
@@ -138,6 +163,7 @@ export default function Home() {
         isLoading={false}
         onDisconnect={() => {}}
         advancedSettings={settings?.advancedSettings ? JSON.parse(settings.advancedSettings) : undefined}
+        expectedPnL={expectedPnL}
       />
 
     </main>

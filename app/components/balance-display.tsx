@@ -6,8 +6,10 @@ import { type BalanceInfo } from "~/lib/hyperliquid";
 import { useHyperliquidService } from "~/stores/hyperliquidStore";
 import { PositionCard } from "~/components/PositionCard";
 import { RealtimePnLSummary } from "~/components/RealtimePnLSummary";
+import { RealtimeTotalValue } from "~/components/RealtimeTotalValue";
 import { DEFAULT_ADVANCED_SETTINGS } from "~/lib/constants";
 import type { AdvancedSettings } from "~/lib/types";
+import type { ExpectedPnLResult } from "~/services/expected-pnl.server";
 
 interface StoredBalance {
   accountValue: number;
@@ -25,9 +27,10 @@ interface BalanceDisplayProps {
   isLoading: boolean;
   onDisconnect: () => void;
   advancedSettings?: AdvancedSettings;
+  expectedPnL?: ExpectedPnLResult | null;
 }
 
-export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress, balances, storedBalance, isLoading, onDisconnect, advancedSettings }: BalanceDisplayProps) {
+export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress, balances, storedBalance, isLoading, onDisconnect, advancedSettings, expectedPnL }: BalanceDisplayProps) {
   const hlService = useHyperliquidService();
   const settings = advancedSettings || DEFAULT_ADVANCED_SETTINGS;
 
@@ -79,22 +82,10 @@ export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2">
             <div>
-              <p className="text-sm text-muted-foreground">Total Value</p>
-              <p className="text-2xl font-bold">
-                {storedBalance 
-                  ? hlService.formatUsdValue(storedBalance.accountValue)
-                  : hlService.formatUsdValue(balances.accountValue)
-                }
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Perps Value</p>
-              <p className="text-2xl font-bold">
-                {storedBalance
-                  ? hlService.formatUsdValue(storedBalance.perpsValue)
-                  : hlService.formatUsdValue(balances.accountValue)
-                }
-              </p>
+              <RealtimeTotalValue 
+                baseAccountValue={balances.accountValue}
+                positions={balances.perpetualPositions}
+              />
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Withdrawable</p>
@@ -106,6 +97,12 @@ export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress
               <p className="text-sm text-muted-foreground">Margin Used</p>
               <p className="text-lg">
                 {hlService.formatUsdValue(balances.totalMarginUsed)}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Notional Position</p>
+              <p className="text-lg">
+                {hlService.formatUsdValue(balances.totalNotionalPosition)}
               </p>
             </div>
           </div>
@@ -198,103 +195,34 @@ export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress
           </CardHeader>
           <CardContent>
             <div className="space-y-3">
-              {/* Calculate total expected profit/loss */}
-              {(() => {
-                let totalExpectedProfit = 0;
-                let totalExpectedLoss = 0;
-                let hasTPOrders = false;
-                let hasSLOrders = false;
-
-                balances.perpetualPositions.forEach(position => {
-                  const isLong = parseFloat(position.szi) > 0;
-                  const entry = parseFloat(position.entryPx);
-                  const sizeNum = Math.abs(parseFloat(position.szi));
-                  const positionValue = entry * sizeNum;
-                  
-                  if (balances.orders) {
-                    const positionOrders = balances.orders.filter(order => order.coin === position.coin);
-                    
-                    // Calculate TP profit
-                    const tpOrders = positionOrders.filter(order => 
-                      order.orderType === "Limit" && order.reduceOnly === true
-                    );
-                    
-                    if (tpOrders.length > 0) {
-                      hasTPOrders = true;
-                      tpOrders.forEach(tpOrder => {
-                        const tpPrice = parseFloat(tpOrder.limitPx);
-                        const tpSize = parseFloat(tpOrder.sz);
-                        const tpProfitPerCoin = isLong ? (tpPrice - entry) : (entry - tpPrice);
-                        const tpProfit = tpProfitPerCoin * tpSize;
-                        
-                        // Calculate fees
-                        const entryFeeProportional = (positionValue * (settings.takerFee / 100)) * (tpSize / sizeNum);
-                        const tpExitFee = (tpPrice * tpSize) * (settings.makerFee / 100);
-                        
-                        totalExpectedProfit += tpProfit - entryFeeProportional - tpExitFee;
-                      });
-                    }
-                    
-                    // Calculate SL loss (if any)
-                    const slOrders = positionOrders.filter(order => 
-                      order.orderType === "Stop Market"
-                    );
-                    
-                    if (slOrders.length > 0) {
-                      hasSLOrders = true;
-                      const firstSL = slOrders[0];
-                      const slPrice = firstSL.triggerPx ? parseFloat(firstSL.triggerPx) : parseFloat(firstSL.limitPx);
-                      const slLossPerCoin = isLong ? (entry - slPrice) : (slPrice - entry);
-                      const slLossBeforeFees = slLossPerCoin * sizeNum;
-                      
-                      // Calculate fees
-                      const entryFee = positionValue * (settings.takerFee / 100);
-                      const slExitFee = (slPrice * sizeNum) * (settings.takerFee / 100);
-                      
-                      const totalSlLoss = slLossBeforeFees < 0 
-                        ? slLossBeforeFees - entryFee - slExitFee  // Profit scenario
-                        : slLossBeforeFees + entryFee + slExitFee; // Loss scenario
-                      
-                      if (totalSlLoss > 0) {
-                        totalExpectedLoss += totalSlLoss;
-                      } else {
-                        // SL is in profit, add to expected profit
-                        totalExpectedProfit += Math.abs(totalSlLoss);
-                      }
-                    }
-                  }
-                });
-
-                if (hasTPOrders || hasSLOrders) {
-                  return (
-                    <div className="mb-4 p-3 bg-muted rounded-lg">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm font-medium">Total Expected P&L</span>
-                        <div className="flex items-center gap-4">
-                          {totalExpectedProfit > 0 && (
-                            <div className="text-sm">
-                              <span className="text-muted-foreground">Profit: </span>
-                              <span className="font-semibold text-green-600">
-                                +{hlService.formatUsdValue(totalExpectedProfit, 2)}
-                              </span>
-                            </div>
-                          )}
-                          {totalExpectedLoss > 0 && (
-                            <div className="text-sm">
-                              <span className="text-muted-foreground">Risk: </span>
-                              <span className="font-semibold text-red-600">
-                                -{hlService.formatUsdValue(totalExpectedLoss, 2)}
-                              </span>
-                            </div>
-                          )}
+              {/* Display server-calculated expected P&L */}
+              {expectedPnL && (expectedPnL.totalExpectedProfit > 0 || expectedPnL.totalExpectedLoss > 0) && (
+                <div className="mb-4 p-3 bg-muted rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Total Expected P&L</span>
+                    <div className="flex items-center gap-4">
+                      {expectedPnL.totalExpectedProfit > 0 && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Profit: </span>
+                          <span className="font-semibold text-green-600">
+                            +{hlService.formatUsdValue(expectedPnL.totalExpectedProfit, 2)}
+                          </span>
                         </div>
-                      </div>
+                      )}
+                      {expectedPnL.totalExpectedLoss > 0 && (
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Risk: </span>
+                          <span className="font-semibold text-red-600">
+                            -{hlService.formatUsdValue(expectedPnL.totalExpectedLoss, 2)}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  );
-                }
-                return null;
-              })()}
+                  </div>
+                </div>
+              )}
               
+              {/* Position cards */}
               {balances.perpetualPositions.map((position, index) => (
                 <PositionCard
                   key={index}
@@ -310,74 +238,6 @@ export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress
         </Card>
       )}
 
-      {/* Spot Balances */}
-      {balances.spotBalances.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Spot Balances</CardTitle>
-            <CardDescription>
-              Your spot wallet balances
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {balances.spotBalances.map((balance, index) => (
-                <div key={index} className="flex justify-between items-center p-3 bg-muted rounded-lg">
-                  <p className="font-semibold">{balance.coin}</p>
-                  <div className="text-right">
-                    <p className="font-semibold">{balance.total}</p>
-                    {parseFloat(balance.hold) > 0 && (
-                      <p className="text-sm text-muted-foreground">
-                        On hold: {balance.hold}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Staking Balance */}
-      {storedBalance && storedBalance.stakingValue > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Staking Balance</CardTitle>
-            <CardDescription>
-              Your HYPE staking positions
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 md:grid-cols-2 mb-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Value</p>
-                <p className="text-2xl font-bold">
-                  {hlService.formatUsdValue(storedBalance.stakingValue)}
-                </p>
-              </div>
-              {balances?.staking && (
-                <>
-                  <div>
-                    <p className="text-sm text-muted-foreground">Staked Amount</p>
-                    <p className="text-lg font-semibold">
-                      {balances.staking.totalStaked} HYPE
-                    </p>
-                  </div>
-                  {parseFloat(balances.staking.pendingWithdrawals) > 0 && (
-                    <div>
-                      <p className="text-sm text-muted-foreground">Pending Withdrawals</p>
-                      <p className="text-lg font-semibold text-orange-600">
-                        {balances.staking.pendingWithdrawals} HYPE
-                      </p>
-                    </div>
-                  )}
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 });
