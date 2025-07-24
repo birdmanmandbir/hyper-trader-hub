@@ -68,6 +68,9 @@ app/                 # Main application code
 - Each route file exports a default component and optional meta/loader/action functions
 - SSR is enabled by default
 - Error boundaries are handled in `root.tsx`
+- **Type Convention**: Use `Route.LoaderArgs` and `Route.ActionArgs` instead of `LoaderFunctionArgs` and `ActionFunctionArgs`
+  - Import the Route type: `import type { Route } from "./+types/[route-name]";`
+  - Example: `export async function loader({ request, context }: Route.LoaderArgs) { ... }`
 
 ## Development Notes
 

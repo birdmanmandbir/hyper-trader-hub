@@ -1,6 +1,7 @@
 import * as React from "react";
-import { redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
+import { redirect } from "react-router";
 import { useLoaderData, Form, useActionData, useNavigation } from "react-router";
+import type { Route } from "./+types/advanced-settings";
 import { toast } from "sonner";
 import { Trash2, Plus } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
@@ -13,7 +14,7 @@ import { getDb } from "~/db/client.server";
 import type { AdvancedSettings, TimePeriod, DailyTarget } from "~/lib/types";
 import { DEFAULT_ADVANCED_SETTINGS, DEFAULT_DAILY_TARGET } from "~/lib/constants";
 
-export async function loader({ request, context }: LoaderFunctionArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
   const userAddress = await requireAuth(request, context.cloudflare.env);
   const db = getDb(context.cloudflare.env);
   
@@ -33,7 +34,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   };
 }
 
-export async function action({ request, context }: ActionFunctionArgs) {
+export async function action({ request, context }: Route.ActionArgs) {
   const userAddress = await requireAuth(request, context.cloudflare.env);
   const db = getDb(context.cloudflare.env);
   const formData = await request.formData();

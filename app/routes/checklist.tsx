@@ -1,6 +1,6 @@
 import * as React from "react";
-import { type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
 import { useLoaderData, Form, useFetcher } from "react-router";
+import type { Route } from "./+types/checklist";
 import { Card } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -40,7 +40,7 @@ const defaultExitChecklist: ChecklistItem[] = [
   { id: "x10", text: "Profit target achieved", checked: false },
 ];
 
-export async function loader({ request, context }: LoaderFunctionArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
   const userAddress = await requireAuth(request, context.cloudflare.env);
   const db = getDb(context.cloudflare.env);
   
@@ -58,7 +58,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   };
 }
 
-export async function action({ request, context }: ActionFunctionArgs) {
+export async function action({ request, context }: Route.ActionArgs) {
   const userAddress = await requireAuth(request, context.cloudflare.env);
   const db = getDb(context.cloudflare.env);
   const formData = await request.formData();

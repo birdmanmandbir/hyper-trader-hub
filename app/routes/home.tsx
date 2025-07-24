@@ -1,5 +1,4 @@
 import * as React from "react";
-import { type LoaderFunctionArgs } from "react-router";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/home";
 import { BalanceDisplay } from "~/components/balance-display";
@@ -18,10 +17,10 @@ export function meta({ }: Route.MetaArgs) {
   ];
 }
 
-export async function loader({ request, context }: LoaderFunctionArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
   // Get user address from session
   const userAddress = await getSessionUser(request, context.cloudflare.env);
-  
+
   // If no user address, return empty data
   if (!userAddress) {
     return {
@@ -32,7 +31,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
       settings: null,
     };
   }
-  
+
   // Get user settings for timezone
   const db = getDb(context.cloudflare.env);
   const settings = await getUserSettings(db, userAddress);
@@ -59,7 +58,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
 
 export default function Home() {
   const { userAddress, balance, settings, expectedPnL, calculated } = useLoaderData<typeof loader>();
-  
+
   // Show welcome message when not connected
   if (!userAddress) {
     return (
@@ -78,19 +77,19 @@ export default function Home() {
   }
   // Auto-refresh balance data every 30 seconds
   const { secondsUntilRefresh, isRefreshing } = useAutoRefresh(30000);
-  
+
   // Get realtime P&L
   const { totalPnL: realtimePnL } = useRealtimePnL(balance?.perpetualPositions || []);
-  
+
   // Calculate realtime total value
   const realtimeTotalValue = React.useMemo(() => {
     if (!balance) return 0;
-    
+
     const baseValue = parseFloat(balance.accountValue);
-    const oldUnrealizedPnL = balance.perpetualPositions.reduce((sum, pos) => 
+    const oldUnrealizedPnL = balance.perpetualPositions.reduce((sum, pos) =>
       sum + parseFloat(pos.unrealizedPnl || "0"), 0
     );
-    
+
     return baseValue - oldUnrealizedPnL + realtimePnL;
   }, [balance, realtimePnL]);
 
@@ -142,7 +141,7 @@ export default function Home() {
         balances={balance}
         storedBalance={null}
         isLoading={false}
-        onDisconnect={() => {}}
+        onDisconnect={() => { }}
         advancedSettings={settings?.advancedSettings ? JSON.parse(settings.advancedSettings) : undefined}
         expectedPnL={expectedPnL}
         calculated={calculated}

@@ -1,6 +1,7 @@
 import * as React from "react";
-import { redirect, type LoaderFunctionArgs, type ActionFunctionArgs } from "react-router";
+import { redirect } from "react-router";
 import { useLoaderData, Link, Form, useActionData } from "react-router";
+import type { Route } from "./+types/daily-target";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
@@ -19,7 +20,7 @@ import { getOrCreateStreakData } from "~/db/streak.server";
 import type { DailyTarget, AdvancedSettings } from "~/lib/types";
 import { DEFAULT_DAILY_TARGET, DEFAULT_ADVANCED_SETTINGS } from "~/lib/constants";
 
-export async function loader({ request, context }: LoaderFunctionArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
   const userAddress = await requireAuth(request, context.cloudflare.env);
   const db = getDb(context.cloudflare.env);
   
@@ -60,7 +61,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   };
 }
 
-export async function action({ request, context }: ActionFunctionArgs) {
+export async function action({ request, context }: Route.ActionArgs) {
   const userAddress = await requireAuth(request, context.cloudflare.env);
   const db = getDb(context.cloudflare.env);
   const formData = await request.formData();
