@@ -1,8 +1,11 @@
-import { getDb, getDailyBalance, createDailyBalance } from "~/db/client.server";
+import { getDb, getDailyBalance, createDailyBalance, getUserSettings } from "~/db/client.server";
 import { HyperliquidService, type BalanceInfo } from "~/lib/hyperliquid";
 import { getUserDateString } from "~/lib/time-utils.server";
 import { getCachedData, getUserCacheKey } from "~/services/cache.server";
 import { coalesceRequests } from "~/services/request-coalescing.server";
+import { calculatePositionAnalysis, type PositionAnalysisResult } from "~/services/position-analysis.server";
+import { DEFAULT_ADVANCED_SETTINGS } from "~/lib/constants";
+import type { AdvancedSettings } from "~/lib/types";
 
 export class BalanceService {
   constructor(
@@ -111,7 +114,7 @@ export class BalanceService {
 }
 
 /**
- * Loader helper to get balance data
+ * Loader helper to get balance data with position analysis
  */
 export async function getBalanceData(
   env: Env,
@@ -119,15 +122,48 @@ export async function getBalanceData(
   timezoneOffset: number = 0
 ) {
   const service = new BalanceService(env, userAddress, timezoneOffset);
+  const db = getDb(env);
   
-  const [balance, dailyStartBalance] = await Promise.all([
+  // Fetch balance, daily start balance, and user settings in parallel
+  const [balance, dailyStartBalance, settings] = await Promise.all([
     service.getBalance(),
-    service.getDailyStartBalance()
+    service.getDailyStartBalance(),
+    getUserSettings(db, userAddress)
   ]);
+  
+  // Calculate position analysis if there are positions
+  let positionAnalysis: PositionAnalysisResult | null = null;
+  if (balance.perpetualPositions.length > 0) {
+    const advancedSettings: AdvancedSettings = settings?.advancedSettings 
+      ? JSON.parse(settings.advancedSettings) 
+      : DEFAULT_ADVANCED_SETTINGS;
+    
+    positionAnalysis = calculatePositionAnalysis(
+      balance.perpetualPositions,
+      balance.orders,
+      advancedSettings
+    );
+  }
+  
+  // Calculate additional fields
+  const accountValue = parseFloat(balance.accountValue);
+  const notionalPosition = parseFloat(balance.totalNotionalPosition);
+  const marginUsed = parseFloat(balance.totalMarginUsed);
+  
+  const leverage = accountValue > 0 ? notionalPosition / accountValue : 0;
+  const marginUsagePercent = accountValue > 0 ? (marginUsed / accountValue) * 100 : 0;
   
   return {
     balance,
     dailyStartBalance,
-    timestamp: Date.now()
+    timestamp: Date.now(),
+    positionAnalysis,
+    calculated: {
+      leverage,
+      leverageFormatted: `${leverage.toFixed(2)}x`,
+      marginUsagePercent,
+      marginUsageFormatted: `${marginUsagePercent.toFixed(1)}%`,
+      hasPositions: balance.perpetualPositions.length > 0
+    }
   };
 }

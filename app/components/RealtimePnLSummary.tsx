@@ -1,6 +1,6 @@
 import * as React from "react";
-import { useHyperliquidService } from "~/stores/hyperliquidStore";
 import { useRealtimePnL } from "~/hooks/useRealtimePnL";
+import { formatUsdValue } from "~/lib/formatting";
 
 interface Position {
   coin: string;
@@ -14,7 +14,6 @@ interface RealtimePnLSummaryProps {
 }
 
 export function RealtimePnLSummary({ positions }: RealtimePnLSummaryProps) {
-  const hlService = useHyperliquidService();
   const { totalPnL } = useRealtimePnL(positions);
   
   // Calculate total notional
@@ -28,10 +27,10 @@ export function RealtimePnLSummary({ positions }: RealtimePnLSummaryProps) {
     <div className="text-right">
       <p className="text-sm text-muted-foreground">Total P&L (Live)</p>
       <p className={`text-xl font-bold ${totalPnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-        {hlService.formatUsdValue(totalPnL, 2)}
+        {formatUsdValue(totalPnL, 2)}
       </p>
       <p className="text-xs text-muted-foreground">
-        on {hlService.formatUsdValue(totalNotional)} notional
+        on {formatUsdValue(totalNotional)} notional
       </p>
     </div>
   );

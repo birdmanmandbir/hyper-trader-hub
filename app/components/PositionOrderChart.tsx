@@ -1,6 +1,7 @@
 import * as React from "react";
 import { useLivePrice } from "~/hooks/useLivePrice";
 import type { Order } from "~/lib/hyperliquid";
+import type { PositionAnalysis } from "~/services/position-analysis.server";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Button } from "~/components/ui/button";
 import { ChevronDown, ChevronUp } from "lucide-react";
@@ -14,9 +15,10 @@ interface PositionOrderChartProps {
   positionSize?: string; // Added to calculate dollar PnL
   takerFee?: number; // Fee for market/stop orders (in percentage, e.g., 0.04)
   makerFee?: number; // Fee for limit orders (in percentage, e.g., 0.012)
+  analysis?: PositionAnalysis;
 }
 
-export function PositionOrderChart({ coin, entryPrice, side, orders, positionSize, takerFee = 0.04, makerFee = 0.012 }: PositionOrderChartProps) {
+export function PositionOrderChart({ coin, entryPrice, side, orders, positionSize, takerFee = 0.04, makerFee = 0.012, analysis }: PositionOrderChartProps) {
   const { price: currentPrice } = useLivePrice(coin);
   const [isAnalysisOpen, setIsAnalysisOpen] = React.useState(false);
   const isLong = parseFloat(side) > 0;
@@ -35,33 +37,10 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
   const posValue = parseFloat(positionSize || "0");
   const roe = posValue > 0 ? (pnlDollar / posValue) * 100 : 0;
   
-  // Filter orders for this coin
-  const positionOrders = orders.filter(order => order.coin === coin);
-  
-  // Separate TP and SL orders based on orderType
-  const tpOrders = positionOrders.filter(order => {
-    // TP orders are Limit orders with reduce-only
-    return order.orderType === "Limit" && order.reduceOnly === true;
-  });
-  
-  const slOrders = positionOrders.filter(order => {
-    // SL orders are Stop Market orders (including those with sz=0)
-    return order.orderType === "Stop Market";
-  });
-  
-  
-  // Calculate price range for visualization
-  const allPrices = [entry, current];
-  tpOrders.forEach(order => allPrices.push(parseFloat(order.limitPx)));
-  slOrders.forEach(order => {
-    // Use triggerPx for stop orders if available, otherwise limitPx
-    const price = order.triggerPx ? parseFloat(order.triggerPx) : parseFloat(order.limitPx);
-    allPrices.push(price);
-  });
-  
-  const minPrice = Math.min(...allPrices) * 0.995; // Add 0.5% padding
-  const maxPrice = Math.max(...allPrices) * 1.005; // Add 0.5% padding
-  const priceRange = maxPrice - minPrice;
+  // Use server-calculated visualization data if available
+  const minPrice = analysis?.visualization.minPrice || entry * 0.995;
+  const maxPrice = analysis?.visualization.maxPrice || entry * 1.005;
+  const priceRange = analysis?.visualization.priceRange || (maxPrice - minPrice);
   
   // Helper to convert price to percentage position
   const priceToPercent = (price: number) => {
@@ -115,32 +94,23 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
           <div className="w-full h-px bg-border" />
         </div>
         
-        {/* SL Orders */}
-        {slOrders.map((order, idx) => {
-          const price = order.triggerPx ? parseFloat(order.triggerPx) : parseFloat(order.limitPx);
-          const position = priceToPercent(price);
-          const slDistance = Math.abs(((price - entry) / entry) * 100);
-          const slPnL = (isLong ? (price - entry) : (entry - price)) * sizeNum;
-          const isProfit = slPnL > 0;
-          
-          return (
-            <div
-              key={`sl-${idx}`}
-              className={`absolute top-0 bottom-0 w-1 ${isProfit ? 'bg-green-500' : 'bg-red-500'} hover:w-2 transition-all cursor-pointer`}
-              style={{ left: `${position}%` }}
-              title={`Stop Loss: ${formatPrice(price)} (${isProfit ? '+' : '-'}${slDistance.toFixed(2)}% / ${isProfit ? '+' : ''}${formatUsd(slPnL)})${isProfit ? ' - Profit Protected!' : ''}`}
-            >
-              <div className={`absolute -top-6 left-1/2 -translate-x-1/2 text-xs ${isProfit ? 'text-green-600' : 'text-red-600'} whitespace-nowrap`}>
-                SL {formatPrice(price)}
-              </div>
+        {/* SL Order */}
+        {analysis?.slOrder && (
+          <div
+            className={`absolute top-0 bottom-0 w-1 ${analysis.slOrder.isInProfit ? 'bg-green-500' : 'bg-red-500'} hover:w-2 transition-all cursor-pointer`}
+            style={{ left: `${analysis.visualization.slPosition}%` }}
+            title={`Stop Loss: ${formatPrice(analysis.slOrder.price)} (${analysis.slOrder.isInProfit ? '+' : '-'}${analysis.slOrder.percentMove.toFixed(2)}% / ${analysis.slOrder.isInProfit ? '+' : ''}${formatUsd(Math.abs(analysis.slOrder.loss))})${analysis.slOrder.isInProfit ? ' - Profit Protected!' : ''}`}
+          >
+            <div className={`absolute -top-6 left-1/2 -translate-x-1/2 text-xs ${analysis.slOrder.isInProfit ? 'text-green-600' : 'text-red-600'} whitespace-nowrap`}>
+              SL {formatPrice(analysis.slOrder.price)}
             </div>
-          );
-        })}
+          </div>
+        )}
         
         {/* Entry Price */}
         <div
           className="absolute top-0 bottom-0 w-0.5 bg-blue-500 hover:w-1 transition-all cursor-pointer"
-          style={{ left: `${priceToPercent(entry)}%` }}
+          style={{ left: `${analysis?.visualization.entryPosition || priceToPercent(entry)}%` }}
           title={`Entry Price: ${formatPrice(entry)}`}
         >
           <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-blue-600 whitespace-nowrap">
@@ -149,25 +119,18 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
         </div>
         
         {/* TP Orders */}
-        {tpOrders.map((order, idx) => {
-          const price = parseFloat(order.limitPx);
-          const position = priceToPercent(price);
-          const tpDistance = Math.abs(((price - entry) / entry) * 100);
-          const tpProfit = Math.abs(price - entry) * parseFloat(order.sz);
-          
-          return (
-            <div
-              key={`tp-${idx}`}
-              className="absolute top-0 bottom-0 w-1 bg-green-500 hover:w-2 transition-all cursor-pointer"
-              style={{ left: `${position}%` }}
-              title={`Take Profit: ${formatPrice(price)} (+${tpDistance.toFixed(2)}% / +${formatUsd(tpProfit)}) - Size: ${order.sz} ${coin}`}
-            >
-              <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-green-600 whitespace-nowrap">
-                TP{idx + 1} {formatPrice(price)}
-              </div>
+        {analysis?.tpOrders.map((tp, idx) => (
+          <div
+            key={`tp-${idx}`}
+            className="absolute top-0 bottom-0 w-1 bg-green-500 hover:w-2 transition-all cursor-pointer"
+            style={{ left: `${analysis.visualization.tpPositions[idx]}%` }}
+            title={`Take Profit: ${formatPrice(tp.price)} (+${tp.percentMove.toFixed(2)}% / +${formatUsd(tp.profit)}) - Size: ${tp.size} ${coin}`}
+          >
+            <div className="absolute -top-6 left-1/2 -translate-x-1/2 text-xs text-green-600 whitespace-nowrap">
+              TP{idx + 1} {formatPrice(tp.price)}
             </div>
-          );
-        })}
+          </div>
+        ))}
         
         {/* Current Price */}
         {currentPrice && (
@@ -194,21 +157,17 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
           <span className="text-base">🚩</span>
           <span>Current</span>
         </div>
-        {tpOrders.length > 0 && (
+        {(analysis?.tpOrders.length || 0) > 0 && (
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-green-500 rounded" />
             <span>Take Profit</span>
           </div>
         )}
-        {slOrders.length > 0 && (
+        {analysis?.slOrder && (
           <div className="flex items-center gap-1">
             <div className="w-3 h-3 bg-red-500 rounded" />
             <span>Stop Loss</span>
-            {slOrders.some(order => {
-              const price = order.triggerPx ? parseFloat(order.triggerPx) : parseFloat(order.limitPx);
-              const slPnL = (isLong ? (price - entry) : (entry - price)) * sizeNum;
-              return slPnL > 0;
-            }) && (
+            {analysis.slOrder.isInProfit && (
               <span className="text-green-600">(in profit)</span>
             )}
           </div>
@@ -233,198 +192,137 @@ export function PositionOrderChart({ coin, entryPrice, side, orders, positionSiz
         {isAnalysisOpen && (
           <CardContent className="pt-0 px-4 pb-4">
             {(() => {
-              // Calculate risk and reward with fees
-              const positionValue = entry * sizeNum;
-              
-              // Entry fees (taker fee for market entry)
-              const entryFee = positionValue * (takerFee / 100);
-              
-              // Find first SL order
-              const firstSL = slOrders[0];
-              
-              // Check if we have TP orders
-              if (tpOrders.length === 0) {
+              // Use server-calculated analysis if available
+              if (analysis) {
+                const { entryFee, slOrder, tpOrders: tpAnalysis, summary } = analysis;
+                
+                // Check if we have TP orders
+                if (tpAnalysis.length === 0) {
+                  return (
+                    <p className="text-sm text-muted-foreground">
+                      No take profit orders set
+                    </p>
+                  );
+                }
+                
                 return (
-                  <p className="text-sm text-muted-foreground">
-                    No take profit orders set
-                  </p>
-                );
-              }
-              
-              // Handle cases with and without SL
-              let slPrice = 0;
-              let slPriceMove = 0;
-              let slLossPerCoin = 0;
-              let slLossBeforeFees = 0;
-              let slExitFee = 0;
-              let totalSlLoss = 0;
-              let slPercentMove = 0;
-              
-              if (firstSL) {
-                slPrice = firstSL.triggerPx ? parseFloat(firstSL.triggerPx) : parseFloat(firstSL.limitPx);
-                
-                // Calculate SL risk (can be negative if SL is in profit)
-                slPriceMove = Math.abs(slPrice - entry);
-                slLossPerCoin = isLong ? (entry - slPrice) : (slPrice - entry);
-                slLossBeforeFees = slLossPerCoin * sizeNum;
-                slExitFee = (slPrice * sizeNum) * (takerFee / 100); // Stop market uses taker fee
-                
-                // If slLossBeforeFees is negative, it means we're in profit (SL above entry for long, below for short)
-                // In this case, we should subtract fees from the profit, not add them to a loss
-                totalSlLoss = slLossBeforeFees < 0 
-                  ? slLossBeforeFees - entryFee - slExitFee  // Profit scenario: subtract fees from profit
-                  : slLossBeforeFees + entryFee + slExitFee; // Loss scenario: add fees to loss
-                
-                slPercentMove = (slPriceMove / entry) * 100;
-              }
-              
-              // Calculate total TP reward (sum of all TP orders)
-              let totalTpProfitBeforeFees = 0;
-              let totalTpExitFees = 0;
-              let totalTpSize = 0;
-              let weightedTpPrice = 0;
-              
-              tpOrders.forEach((tpOrder, idx) => {
-                const tpPrice = parseFloat(tpOrder.limitPx);
-                const tpSize = parseFloat(tpOrder.sz);
-                totalTpSize += tpSize;
-                weightedTpPrice += tpPrice * tpSize;
-                
-                const tpProfitPerCoin = isLong ? (tpPrice - entry) : (entry - tpPrice);
-                const tpProfitThisOrder = tpProfitPerCoin * tpSize;
-                const tpExitFeeThisOrder = (tpPrice * tpSize) * (makerFee / 100);
-                
-                totalTpProfitBeforeFees += tpProfitThisOrder;
-                totalTpExitFees += tpExitFeeThisOrder;
-              });
-              
-              // Calculate weighted average TP price for display
-              const avgTpPrice = totalTpSize > 0 ? weightedTpPrice / totalTpSize : 0;
-              const tpPriceMove = Math.abs(avgTpPrice - entry);
-              const tpPercentMove = (tpPriceMove / entry) * 100;
-              
-              // Calculate proportional entry fee for TP orders
-              const tpEntryFeeProportional = entryFee * (totalTpSize / sizeNum);
-              const totalTpProfit = totalTpProfitBeforeFees - tpEntryFeeProportional - totalTpExitFees;
-              
-              // R:R calculation
-              // When SL is in profit (totalSlLoss < 0), we need a different calculation
-              const rrRatio = totalSlLoss > 0 
-                ? totalTpProfit / totalSlLoss  // Normal R:R when risking capital
-                : totalSlLoss < 0 && totalTpProfit > Math.abs(totalSlLoss)
-                  ? (totalTpProfit - Math.abs(totalSlLoss)) / Math.abs(totalSlLoss)  // Additional profit beyond guaranteed profit
-                  : 0; // Invalid scenario or no additional reward beyond guaranteed profit
-              
-              return (
-                <div className="space-y-3">
-                  {/* Risk Analysis - Only show if SL exists */}
-                  {firstSL && (
+                  <div className="space-y-3">
+                    {/* Risk Analysis - Only show if SL exists */}
+                    {slOrder && (
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-semibold text-muted-foreground uppercase">
+                          {slOrder.isInProfit ? "Profit Protection (Stop Loss)" : "Risk (Stop Loss)"}
+                        </h4>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <p className="text-muted-foreground">Price Move:</p>
+                            <p className={`font-semibold ${slOrder.isInProfit ? 'text-green-600' : 'text-red-600'}`}>
+                              {slOrder.isInProfit ? '+' : '-'}{(Math.abs(slOrder.price - entry) / entry * 100).toFixed(2)}%
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">{slOrder.isInProfit ? "Min Profit:" : "Total Loss:"}</p>
+                            <p className={`font-semibold ${slOrder.isInProfit ? 'text-green-600' : 'text-red-600'}`}>
+                              {slOrder.isInProfit ? '+' : '-'}{formatUsd(Math.abs(slOrder.totalLoss))}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Entry Fee:</p>
+                            <p className="text-xs">{formatUsd(entryFee)} ({takerFee}%)</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Exit Fee:</p>
+                            <p className="text-xs">{formatUsd(slOrder.exitFee)} ({takerFee}%)</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Reward Analysis */}
                     <div className="space-y-2">
-                      <h4 className="text-xs font-semibold text-muted-foreground uppercase">
-                        {totalSlLoss < 0 ? "Profit Protection (Stop Loss)" : "Risk (Stop Loss)"}
-                      </h4>
+                      <h4 className="text-xs font-semibold text-muted-foreground uppercase">Reward (Take Profit)</h4>
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         <div>
-                          <p className="text-muted-foreground">Price Move:</p>
-                          <p className={`font-semibold ${totalSlLoss < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {totalSlLoss < 0 ? '+' : '-'}{slPercentMove.toFixed(2)}%
+                          <p className="text-muted-foreground">Avg Price Move:</p>
+                          <p className="font-semibold text-green-600">+{((Math.abs(summary.avgTpPrice - entry) / entry) * 100).toFixed(2)}%</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Net Profit:</p>
+                          <p className="font-semibold text-green-600">+{formatUsd(analysis.expectedProfit)}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Total TP Size:</p>
+                          <p className="text-xs">{summary.totalTpSize.toFixed(4)} {coin} ({((summary.totalTpSize / sizeNum) * 100).toFixed(0)}%)</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Exit Fees:</p>
+                          <p className="text-xs">{formatUsd(summary.totalTpExitFees)} ({makerFee}%)</p>
+                        </div>
+                      </div>
+                      {tpAnalysis.length > 1 && (
+                        <div className="text-xs text-muted-foreground mt-1">
+                          {tpAnalysis.length} TP orders: {tpAnalysis.map((tp, idx) => 
+                            `TP${idx + 1} ${formatPrice(tp.price)} (${tp.size} ${coin})`
+                          ).join(', ')}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Summary */}
+                    <div className="pt-2 border-t">
+                      <div className="grid grid-cols-3 gap-2 text-xs">
+                        <div className="text-center">
+                          <p className="text-muted-foreground">
+                            {!slOrder ? "Expected Profit" : slOrder.isInProfit ? "Profit Multiple" : "Risk:Reward"}
+                          </p>
+                          <p className="font-bold text-lg">
+                            {!slOrder 
+                              ? formatUsd(analysis.expectedProfit)
+                              : slOrder.isInProfit 
+                                ? analysis.expectedProfit > Math.abs(slOrder.totalLoss) 
+                                  ? `${(analysis.expectedProfit / Math.abs(slOrder.totalLoss)).toFixed(2)}x`
+                                  : "Protected"
+                                : `1:${summary.rrRatio.toFixed(2)}`
+                            }
                           </p>
                         </div>
-                        <div>
-                          <p className="text-muted-foreground">{totalSlLoss < 0 ? "Min Profit:" : "Total Loss:"}</p>
-                          <p className={`font-semibold ${totalSlLoss < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {totalSlLoss < 0 ? '+' : '-'}{formatUsd(Math.abs(totalSlLoss))}
-                          </p>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Max Fees</p>
+                          <p className="font-semibold">{formatUsd(summary.maxFees)}</p>
                         </div>
-                        <div>
-                          <p className="text-muted-foreground">Entry Fee:</p>
-                          <p className="text-xs">{formatUsd(entryFee)} ({takerFee}%)</p>
-                        </div>
-                        <div>
-                          <p className="text-muted-foreground">Exit Fee:</p>
-                          <p className="text-xs">{formatUsd(slExitFee)} ({takerFee}%)</p>
+                        <div className="text-center">
+                          <p className="text-muted-foreground">Breakeven</p>
+                          <p className="font-semibold">{summary.breakevenPercent.toFixed(3)}%</p>
                         </div>
                       </div>
                     </div>
-                  )}
-                  
-                  {/* Reward Analysis */}
-                  <div className="space-y-2">
-                    <h4 className="text-xs font-semibold text-muted-foreground uppercase">Reward (Take Profit)</h4>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <p className="text-muted-foreground">Avg Price Move:</p>
-                        <p className="font-semibold text-green-600">+{tpPercentMove.toFixed(2)}%</p>
+                    
+                    {summary.totalTpSize < sizeNum * 0.99 && ( // Allow 1% tolerance for rounding
+                      <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
+                        ⚠️ TP orders total {((summary.totalTpSize / sizeNum) * 100).toFixed(0)}% of position. R:R calculated for partial exit.
                       </div>
-                      <div>
-                        <p className="text-muted-foreground">Net Profit:</p>
-                        <p className="font-semibold text-green-600">+{formatUsd(totalTpProfit)}</p>
+                    )}
+                    
+                    {slOrder?.isInProfit && (
+                      <div className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 p-2 rounded">
+                        ✅ Stop loss is in profit! You have locked in a minimum profit of {formatUsd(Math.abs(slOrder.totalLoss))} after fees.
                       </div>
-                      <div>
-                        <p className="text-muted-foreground">Total TP Size:</p>
-                        <p className="text-xs">{totalTpSize.toFixed(4)} {coin} ({((totalTpSize / sizeNum) * 100).toFixed(0)}%)</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">Exit Fees:</p>
-                        <p className="text-xs">{formatUsd(totalTpExitFees)} ({makerFee}%)</p>
-                      </div>
-                    </div>
-                    {tpOrders.length > 1 && (
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {tpOrders.length} TP orders: {tpOrders.map((tp, idx) => 
-                          `TP${idx + 1} ${formatPrice(parseFloat(tp.limitPx))} (${tp.sz} ${coin})`
-                        ).join(', ')}
+                    )}
+                    
+                    {!slOrder && (
+                      <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
+                        ⚠️ No stop loss set. Position is exposed to unlimited downside risk.
                       </div>
                     )}
                   </div>
-                  
-                  {/* Summary */}
-                  <div className="pt-2 border-t">
-                    <div className="grid grid-cols-3 gap-2 text-xs">
-                      <div className="text-center">
-                        <p className="text-muted-foreground">
-                          {!firstSL ? "Expected Profit" : totalSlLoss < 0 ? "Profit Multiple" : "Risk:Reward"}
-                        </p>
-                        <p className="font-bold text-lg">
-                          {!firstSL 
-                            ? formatUsd(totalTpProfit)
-                            : totalSlLoss < 0 
-                              ? totalTpProfit > Math.abs(totalSlLoss) 
-                                ? `${(totalTpProfit / Math.abs(totalSlLoss)).toFixed(2)}x`
-                                : "Protected"
-                              : `1:${rrRatio.toFixed(2)}`
-                          }
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Max Fees</p>
-                        <p className="font-semibold">{formatUsd(entryFee + (firstSL ? slExitFee : totalTpExitFees))}</p>
-                      </div>
-                      <div className="text-center">
-                        <p className="text-muted-foreground">Breakeven</p>
-                        <p className="font-semibold">{((entryFee / positionValue) * 100).toFixed(3)}%</p>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {totalTpSize < sizeNum * 0.99 && ( // Allow 1% tolerance for rounding
-                    <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
-                      ⚠️ TP orders total {((totalTpSize / sizeNum) * 100).toFixed(0)}% of position. R:R calculated for partial exit.
-                    </div>
-                  )}
-                  
-                  {totalSlLoss < 0 && (
-                    <div className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 p-2 rounded">
-                      ✅ Stop loss is in profit! You have locked in a minimum profit of {formatUsd(Math.abs(totalSlLoss))} after fees.
-                    </div>
-                  )}
-                  
-                  {!firstSL && (
-                    <div className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded">
-                      ⚠️ No stop loss set. Position is exposed to unlimited downside risk.
-                    </div>
-                  )}
-                </div>
+                );
+              }
+              
+              // No analysis available
+              return (
+                <p className="text-sm text-muted-foreground">
+                  Position analysis not available
+                </p>
               );
             })()}
           </CardContent>

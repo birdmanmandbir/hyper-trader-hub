@@ -9,7 +9,7 @@ import { requireAuth } from "~/lib/auth.server";
 import { getBalanceData } from "~/services/balance.server";
 import { getUserSettings, upsertUserSettings, getDailyBalance } from "~/db/client.server";
 import { getDb } from "~/db/client.server";
-import { useHyperliquidService } from "~/stores/hyperliquidStore";
+import { formatUsdValue } from "~/lib/formatting";
 import { useAutoRefresh } from "~/hooks/useAutoRefresh";
 import { TradingTimeBar } from "~/components/TradingTimeBar";
 import { TradeCalculator } from "~/components/TradeCalculator";
@@ -108,7 +108,6 @@ export default function DailyTarget() {
   const actionData = useActionData<typeof action>();
   
   const [tempTarget, setTempTarget] = React.useState(dailyTarget);
-  const hlService = useHyperliquidService();
   
   // Auto-refresh balance data every 30 seconds
   const { secondsUntilRefresh, isRefreshing } = useAutoRefresh(30000);
@@ -180,7 +179,7 @@ export default function DailyTarget() {
                 <div className="space-y-3">
                   <div className="p-3 bg-red-100 dark:bg-red-900/40 rounded-lg">
                     <p className="font-semibold text-red-800 dark:text-red-300">
-                      Current Loss: {hlService.formatUsdValue(dailyProfit)} ({actualLossPercentage.toFixed(2)}%)
+                      Current Loss: {formatUsdValue(dailyProfit)} ({actualLossPercentage.toFixed(2)}%)
                     </p>
                     <p className="text-sm mt-1 text-red-700 dark:text-red-400">
                       You've exceeded your {advancedSettings.lossThreshold}% loss threshold
@@ -275,11 +274,11 @@ export default function DailyTarget() {
                 <div className="grid grid-cols-2 gap-4 p-3 bg-muted rounded-lg text-sm">
                   <div>
                     <p className="text-muted-foreground">Target per trade</p>
-                    <p className="font-semibold">{hlService.formatUsdValue(profitPerTrade)}</p>
+                    <p className="font-semibold">{formatUsdValue(profitPerTrade)}</p>
                   </div>
                   <div>
                     <p className="text-muted-foreground">Daily target amount</p>
-                    <p className="font-semibold">{hlService.formatUsdValue(dailyTargetAmount)}</p>
+                    <p className="font-semibold">{formatUsdValue(dailyTargetAmount)}</p>
                   </div>
                 </div>
                 
@@ -324,21 +323,21 @@ export default function DailyTarget() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div className="p-2 bg-muted rounded">
                       <p className="text-muted-foreground">Start Balance</p>
-                      <p className="font-semibold">{hlService.formatUsdValue(startOfDayAccountValue)}</p>
+                      <p className="font-semibold">{formatUsdValue(startOfDayAccountValue)}</p>
                     </div>
                     <div className="p-2 bg-muted rounded">
                       <p className="text-muted-foreground">Current Balance</p>
-                      <p className="font-semibold">{hlService.formatUsdValue(currentAccountValue)}</p>
+                      <p className="font-semibold">{formatUsdValue(currentAccountValue)}</p>
                     </div>
                     <div className="p-2 bg-muted rounded">
                       <p className="text-muted-foreground">Daily P&L</p>
                       <p className={`font-semibold ${dailyProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {dailyProfit >= 0 ? '+' : ''}{hlService.formatUsdValue(dailyProfit)}
+                        {dailyProfit >= 0 ? '+' : ''}{formatUsdValue(dailyProfit)}
                       </p>
                     </div>
                     <div className="p-2 bg-muted rounded">
                       <p className="text-muted-foreground">Target</p>
-                      <p className="font-semibold">{hlService.formatUsdValue(dailyTargetAmount)}</p>
+                      <p className="font-semibold">{formatUsdValue(dailyTargetAmount)}</p>
                     </div>
                   </div>
                   

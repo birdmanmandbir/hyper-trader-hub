@@ -1,5 +1,4 @@
 import * as hl from "@nktkas/hyperliquid";
-import { getPriceDecimals } from "./price-decimals";
 
 export interface StakingInfo {
   totalStaked: string;
@@ -142,16 +141,6 @@ export class HyperliquidService {
     }
   }
 
-  formatUsdValue(value: string | number, forceDecimals?: number): string {
-    const num = typeof value === "string" ? parseFloat(value) : value;
-    const decimals = forceDecimals ?? getPriceDecimals(num);
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: "USD",
-      minimumFractionDigits: forceDecimals ?? Math.min(decimals, 2),
-      maximumFractionDigits: decimals,
-    }).format(num);
-  }
 
   async getHypePrice(): Promise<number> {
     try {

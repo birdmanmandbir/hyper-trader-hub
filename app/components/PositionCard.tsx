@@ -1,9 +1,10 @@
 import * as React from "react";
-import { useHyperliquidService } from "~/stores/hyperliquidStore";
 import { PositionOrderChart } from "~/components/PositionOrderChart";
 import { formatPrice } from "~/lib/price-decimals";
+import { formatUsdValue } from "~/lib/formatting";
 import { useLivePrice } from "~/hooks/useLivePrice";
 import type { Order } from "~/lib/hyperliquid";
+import type { PositionAnalysis } from "~/services/position-analysis.server";
 
 interface PositionCardProps {
   position: {
@@ -22,10 +23,10 @@ interface PositionCardProps {
   takerFee: number;
   makerFee: number;
   accountValue: string;
+  analysis?: PositionAnalysis;
 }
 
-export function PositionCard({ position, orders, takerFee, makerFee, accountValue }: PositionCardProps) {
-  const hlService = useHyperliquidService();
+export function PositionCard({ position, orders, takerFee, makerFee, accountValue, analysis }: PositionCardProps) {
   const { price: livePrice } = useLivePrice(position.coin);
   
   const sizeNum = Math.abs(parseFloat(position.szi));
@@ -64,7 +65,7 @@ export function PositionCard({ position, orders, takerFee, makerFee, accountValu
             </span>
           </p>
           <p className="text-sm text-muted-foreground">
-            Size: {formatPrice(sizeNum)} {position.coin} ({hlService.formatUsdValue(positionValueUSD)})
+            Size: {formatPrice(sizeNum)} {position.coin} ({formatUsdValue(positionValueUSD)})
           </p>
           <p className="text-sm text-muted-foreground">
             Entry: {formatPrice(entryPrice)}
@@ -77,7 +78,7 @@ export function PositionCard({ position, orders, takerFee, makerFee, accountValu
         </div>
         <div className="text-right">
           <p className={`font-semibold ${realTimePnL >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-            {hlService.formatUsdValue(realTimePnL, 2)}
+            {formatUsdValue(realTimePnL, 2)}
           </p>
           <p className="text-xs text-muted-foreground">
             ROE: {realTimeROE >= 0 ? '+' : ''}{realTimeROE.toFixed(2)}%
@@ -87,7 +88,7 @@ export function PositionCard({ position, orders, takerFee, makerFee, accountValu
       <div className="grid grid-cols-2 gap-2 text-sm mb-2">
         <div>
           <span className="text-muted-foreground">Margin: </span>
-          <span className="font-medium">{hlService.formatUsdValue(position.marginUsed || "0")}</span>
+          <span className="font-medium">{formatUsdValue(position.marginUsed || "0")}</span>
         </div>
         <div>
           <span className="text-muted-foreground">Leverage: </span>
@@ -128,6 +129,7 @@ export function PositionCard({ position, orders, takerFee, makerFee, accountValu
             positionSize={position.marginUsed}
             takerFee={takerFee}
             makerFee={makerFee}
+            analysis={analysis}
           />
         </div>
       )}

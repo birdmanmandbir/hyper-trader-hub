@@ -4,7 +4,7 @@ import { Button } from "~/components/ui/button";
 import { Switch } from "~/components/ui/switch";
 import { Input } from "~/components/ui/input";
 import { CryptoCombobox } from "~/components/CryptoCombobox";
-import { useHyperliquidService } from "~/stores/hyperliquidStore";
+import { formatUsdValue } from "~/lib/formatting";
 import { useLivePrice } from "~/hooks/useLivePrice";
 import { Copy, Calculator } from "lucide-react";
 import { formatPrice, getPriceDecimals } from "~/lib/price-decimals";
@@ -20,7 +20,6 @@ interface TradeCalculatorProps {
 }
 
 export const TradeCalculator = React.memo(function TradeCalculator({ walletAddress, dailyTarget, advancedSettings, startOfDayPerpsValue, balance }: TradeCalculatorProps) {
-  const hlService = useHyperliquidService();
   
   const [isLong, setIsLong] = React.useState(true);
   const [selectedCoin, setSelectedCoin] = React.useState<string>("");
@@ -392,7 +391,7 @@ export const TradeCalculator = React.memo(function TradeCalculator({ walletAddre
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
                 <p className="text-muted-foreground">Position size (USD):</p>
-                <p className="font-semibold text-primary">{hlService.formatUsdValue(positionSizeInUSD)}</p>
+                <p className="font-semibold text-primary">{formatUsdValue(positionSizeInUSD)}</p>
                 <Button
                   size="sm"
                   variant="ghost"
@@ -467,7 +466,7 @@ export const TradeCalculator = React.memo(function TradeCalculator({ walletAddre
                 <div>
                   <p className="text-muted-foreground">Position size:</p>
                   <p className="font-semibold text-primary">{positionSizeInCoins.toFixed(4)} {coin}</p>
-                  <p className="text-xs text-muted-foreground">{hlService.formatUsdValue(positionSize)}</p>
+                  <p className="text-xs text-muted-foreground">{formatUsdValue(positionSize)}</p>
                   <Button
                     size="sm"
                     variant="ghost"
@@ -487,7 +486,7 @@ export const TradeCalculator = React.memo(function TradeCalculator({ walletAddre
                 </div>
                 <div>
                   <p className="text-muted-foreground">Margin required:</p>
-                  <p className="font-semibold">{hlService.formatUsdValue(marginRequired)}</p>
+                  <p className="font-semibold">{formatUsdValue(marginRequired)}</p>
                 </div>
                 <div>
                   <p className="text-muted-foreground">R:R Ratio:</p>
@@ -506,10 +505,10 @@ export const TradeCalculator = React.memo(function TradeCalculator({ walletAddre
                   -{riskPercentage.toFixed(2)}% move
                 </p>
                 <p className="text-xs text-red-600">
-                  -{hlService.formatUsdValue(riskDollar, 2)}
+                  -{formatUsdValue(riskDollar, 2)}
                 </p>
                 <p className="text-xs text-red-600/80">
-                  Includes {hlService.formatUsdValue(feeCost)} fees
+                  Includes {formatUsdValue(feeCost)} fees
                 </p>
               </div>
               <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
@@ -520,10 +519,10 @@ export const TradeCalculator = React.memo(function TradeCalculator({ walletAddre
                   +{rewardPercentage.toFixed(2)}% move
                 </p>
                 <p className="text-xs text-green-600">
-                  +{hlService.formatUsdValue(rewardDollar, 2)}
+                  +{formatUsdValue(rewardDollar, 2)}
                 </p>
                 <p className="text-xs text-green-600/80">
-                  After {hlService.formatUsdValue(feeCost)} fees
+                  After {formatUsdValue(feeCost)} fees
                 </p>
               </div>
             </div>
@@ -547,11 +546,11 @@ export const TradeCalculator = React.memo(function TradeCalculator({ walletAddre
               <p className="text-xs font-medium mb-1">Trade Setup Summary</p>
               <ul className="text-xs space-y-0.5 text-muted-foreground">
                 <li>• {coin} {isLong ? "Long" : "Short"} @ {formatPrice(entryPrice)}</li>
-                <li>• Position: <span className="font-semibold text-foreground">{positionSizeInCoins.toFixed(4)} {coin}</span> ({hlService.formatUsdValue(positionSize)}, {actualLeverage.toFixed(1)}x leverage)</li>
-                <li>• Target: <span className="font-semibold text-green-600">{formatPrice(tpPrice)}</span> (+{rewardPercentage.toFixed(2)}%, {hlService.formatUsdValue(rewardDollar, 2)} net)</li>
-                <li>• Stop: <span className="font-semibold text-red-600">{formatPrice(slPrice)}</span> (-{riskPercentage.toFixed(2)}%, {hlService.formatUsdValue(riskDollar, 2)} total loss)</li>
+                <li>• Position: <span className="font-semibold text-foreground">{positionSizeInCoins.toFixed(4)} {coin}</span> ({formatUsdValue(positionSize)}, {actualLeverage.toFixed(1)}x leverage)</li>
+                <li>• Target: <span className="font-semibold text-green-600">{formatPrice(tpPrice)}</span> (+{rewardPercentage.toFixed(2)}%, {formatUsdValue(rewardDollar, 2)} net)</li>
+                <li>• Stop: <span className="font-semibold text-red-600">{formatPrice(slPrice)}</span> (-{riskPercentage.toFixed(2)}%, {formatUsdValue(riskDollar, 2)} total loss)</li>
                 <li>• SL BE: <span className="font-semibold">{formatPrice(slBePrice)}</span> ({beMovementPercentage.toFixed(3)}% move to breakeven)</li>
-                <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> ({hlService.formatUsdValue(feeCost)})</li>
+                <li>• Fees: <span className="font-semibold">{(advancedSettings.takerFee * 2).toFixed(2)}%</span> ({formatUsdValue(feeCost)})</li>
                 <li>• R:R Ratio: <span className="font-semibold">1:{rrRatio.toFixed(2)}</span> {isAutoMode && `(fixed ${fixedSLPercentage}% risk, ${(dailyTarget.targetPercentage / dailyTarget.minimumTrades).toFixed(1)}% target)`}</li>
               </ul>
             </div>

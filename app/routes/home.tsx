@@ -7,11 +7,9 @@ import { getSessionUser } from "~/lib/auth.server";
 import { getBalanceData } from "~/services/balance.server";
 import { getUserSettings } from "~/db/client.server";
 import { getDb } from "~/db/client.server";
-import { useHyperliquidService } from "~/stores/hyperliquidStore";
 import { useAutoRefresh } from "~/hooks/useAutoRefresh";
 import { useRealtimePnL } from "~/hooks/useRealtimePnL";
-import { calculateExpectedPnL } from "~/services/expected-pnl.server";
-import { DEFAULT_ADVANCED_SETTINGS } from "~/lib/constants";
+import { formatUsdValue } from "~/lib/formatting";
 
 export function meta({ }: Route.MetaArgs) {
   return [
@@ -35,33 +33,17 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     };
   }
   
-  // Get user settings and balance data
+  // Get user settings for timezone
   const db = getDb(context.cloudflare.env);
-
-  // Get settings
   const settings = await getUserSettings(db, userAddress);
   const timezoneOffset = settings?.timezoneOffset || 0;
 
-  // Get balance data
-  const { balance, dailyStartBalance, timestamp } = await getBalanceData(
+  // Get balance data with position analysis
+  const { balance, dailyStartBalance, timestamp, positionAnalysis, calculated } = await getBalanceData(
     context.cloudflare.env,
     userAddress,
     timezoneOffset
   );
-
-  // Calculate expected P&L on server side
-  let expectedPnL = null;
-  if (balance && balance.perpetualPositions.length > 0) {
-    const advancedSettings = settings?.advancedSettings 
-      ? JSON.parse(settings.advancedSettings) 
-      : DEFAULT_ADVANCED_SETTINGS;
-    
-    expectedPnL = calculateExpectedPnL(
-      balance.perpetualPositions,
-      balance.orders,
-      advancedSettings
-    );
-  }
 
   return {
     userAddress,
@@ -69,13 +51,14 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
     dailyStartBalance,
     timestamp,
     settings,
-    expectedPnL,
+    expectedPnL: positionAnalysis,
+    calculated,
   };
 }
 
 
 export default function Home() {
-  const { userAddress, balance, settings, expectedPnL } = useLoaderData<typeof loader>();
+  const { userAddress, balance, settings, expectedPnL, calculated } = useLoaderData<typeof loader>();
   
   // Show welcome message when not connected
   if (!userAddress) {
@@ -93,8 +76,6 @@ export default function Home() {
       </main>
     );
   }
-  const hlService = useHyperliquidService();
-
   // Auto-refresh balance data every 30 seconds
   const { secondsUntilRefresh, isRefreshing } = useAutoRefresh(30000);
   
@@ -123,13 +104,13 @@ export default function Home() {
       if (hasPositions && realtimePnL !== 0) {
         // Format title with realtime P&L and total value
         const pnlSign = realtimePnL >= 0 ? '+' : '';
-        const pnlFormatted = hlService.formatUsdValue(realtimePnL, 2).replace('$', '');
-        const valueFormatted = hlService.formatUsdValue(realtimeTotalValue).replace('$', '');
+        const pnlFormatted = formatUsdValue(realtimePnL, 2).replace('$', '');
+        const valueFormatted = formatUsdValue(realtimeTotalValue).replace('$', '');
 
         document.title = `${pnlSign}$${pnlFormatted} | $${valueFormatted} - HTH`;
       } else if (realtimeTotalValue > 0) {
         // No positions but has account value
-        const valueFormatted = hlService.formatUsdValue(realtimeTotalValue).replace('$', '');
+        const valueFormatted = formatUsdValue(realtimeTotalValue).replace('$', '');
         document.title = `$${valueFormatted} - HTH`;
       } else {
         document.title = "Hyper Trader Hub";
@@ -164,6 +145,7 @@ export default function Home() {
         onDisconnect={() => {}}
         advancedSettings={settings?.advancedSettings ? JSON.parse(settings.advancedSettings) : undefined}
         expectedPnL={expectedPnL}
+        calculated={calculated}
       />
 
     </main>

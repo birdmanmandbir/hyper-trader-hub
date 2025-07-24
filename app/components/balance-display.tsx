@@ -3,13 +3,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "~/com
 import { Skeleton } from "~/components/ui/skeleton";
 import { Button } from "~/components/ui/button";
 import { type BalanceInfo } from "~/lib/hyperliquid";
-import { useHyperliquidService } from "~/stores/hyperliquidStore";
 import { PositionCard } from "~/components/PositionCard";
 import { RealtimePnLSummary } from "~/components/RealtimePnLSummary";
 import { RealtimeTotalValue } from "~/components/RealtimeTotalValue";
 import { DEFAULT_ADVANCED_SETTINGS } from "~/lib/constants";
 import type { AdvancedSettings } from "~/lib/types";
-import type { ExpectedPnLResult } from "~/services/expected-pnl.server";
+import type { PositionAnalysisResult } from "~/services/position-analysis.server";
+import { formatUsdValue, formatAddress } from "~/lib/formatting";
 
 interface StoredBalance {
   accountValue: number;
@@ -27,16 +27,18 @@ interface BalanceDisplayProps {
   isLoading: boolean;
   onDisconnect: () => void;
   advancedSettings?: AdvancedSettings;
-  expectedPnL?: ExpectedPnLResult | null;
+  expectedPnL?: PositionAnalysisResult | null;
+  calculated?: {
+    leverage: number;
+    leverageFormatted: string;
+    marginUsagePercent: number;
+    marginUsageFormatted: string;
+    hasPositions: boolean;
+  };
 }
 
-export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress, balances, storedBalance, isLoading, onDisconnect, advancedSettings, expectedPnL }: BalanceDisplayProps) {
-  const hlService = useHyperliquidService();
+export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress, balances, storedBalance, isLoading, onDisconnect, advancedSettings, expectedPnL, calculated }: BalanceDisplayProps) {
   const settings = advancedSettings || DEFAULT_ADVANCED_SETTINGS;
-
-  const formatAddress = (address: string) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
 
   if (isLoading) {
     return (
@@ -90,19 +92,19 @@ export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress
             <div>
               <p className="text-sm text-muted-foreground">Withdrawable</p>
               <p className="text-lg">
-                {hlService.formatUsdValue(balances.withdrawable)}
+                {formatUsdValue(balances.withdrawable)}
               </p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Margin Used</p>
               <p className="text-lg">
-                {hlService.formatUsdValue(balances.totalMarginUsed)}
+                {formatUsdValue(balances.totalMarginUsed)}
               </p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Notional Position</p>
               <p className="text-lg">
-                {hlService.formatUsdValue(balances.totalNotionalPosition)}
+                {formatUsdValue(balances.totalNotionalPosition)}
               </p>
             </div>
           </div>
@@ -124,16 +126,13 @@ export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress
                 <div>
                   <p className="text-sm text-muted-foreground">Current Leverage</p>
                   <p className="text-2xl font-bold">
-                    {parseFloat(balances.totalNotionalPosition) > 0 
-                      ? `${(parseFloat(balances.totalNotionalPosition) / parseFloat(balances.accountValue)).toFixed(2)}x`
-                      : "0.00x"
-                    }
+                    {calculated?.leverageFormatted || "0.00x"}
                   </p>
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Notional Position</p>
                   <p className="text-2xl font-bold">
-                    {hlService.formatUsdValue(balances.totalNotionalPosition)}
+                    {formatUsdValue(balances.totalNotionalPosition)}
                   </p>
                 </div>
               </div>
@@ -141,32 +140,29 @@ export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Margin Usage</span>
-                  <span className={parseFloat(balances.accountValue) > 0 && parseFloat(balances.totalMarginUsed) / parseFloat(balances.accountValue) > 0.8 ? "text-amber-600 font-semibold" : ""}>
-                    {parseFloat(balances.accountValue) > 0 
-                      ? `${((parseFloat(balances.totalMarginUsed) / parseFloat(balances.accountValue)) * 100).toFixed(1)}%`
-                      : "0.0%"
-                    }
+                  <span className={calculated && calculated.marginUsagePercent > 80 ? "text-amber-600 font-semibold" : ""}>
+                    {calculated?.marginUsageFormatted || "0.0%"}
                   </span>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-3 dark:bg-gray-700">
                   <div 
                     className={`h-3 rounded-full transition-all duration-500 ${
-                      parseFloat(balances.accountValue) > 0 && parseFloat(balances.totalMarginUsed) / parseFloat(balances.accountValue) > 0.8 
+                      calculated && calculated.marginUsagePercent > 80 
                         ? 'bg-amber-600' 
-                        : parseFloat(balances.accountValue) > 0 && parseFloat(balances.totalMarginUsed) / parseFloat(balances.accountValue) > 0.6 
+                        : calculated && calculated.marginUsagePercent > 60 
                         ? 'bg-yellow-600' 
                         : 'bg-green-600'
                     }`}
-                    style={{ width: parseFloat(balances.accountValue) > 0 ? `${Math.min((parseFloat(balances.totalMarginUsed) / parseFloat(balances.accountValue)) * 100, 100)}%` : '0%' }}
+                    style={{ width: `${Math.min(calculated?.marginUsagePercent || 0, 100)}%` }}
                   />
                 </div>
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Margin Used: {hlService.formatUsdValue(balances.totalMarginUsed)}</span>
-                  <span>Available: {hlService.formatUsdValue(parseFloat(balances.accountValue) - parseFloat(balances.totalMarginUsed))}</span>
+                  <span>Margin Used: {formatUsdValue(balances.totalMarginUsed)}</span>
+                  <span>Available: {formatUsdValue(parseFloat(balances.accountValue) - parseFloat(balances.totalMarginUsed))}</span>
                 </div>
               </div>
 
-              {parseFloat(balances.accountValue) > 0 && parseFloat(balances.totalMarginUsed) / parseFloat(balances.accountValue) > 0.8 && (
+              {calculated && calculated.marginUsagePercent > 80 && (
                 <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
                   <p className="text-sm text-amber-800 dark:text-amber-200">
                     <strong>⚠️ Warning:</strong> High margin usage. Consider reducing position size to avoid liquidation risk.
@@ -205,7 +201,7 @@ export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress
                         <div className="text-sm">
                           <span className="text-muted-foreground">Profit: </span>
                           <span className="font-semibold text-green-600">
-                            +{hlService.formatUsdValue(expectedPnL.totalExpectedProfit, 2)}
+                            +{formatUsdValue(expectedPnL.totalExpectedProfit, 2)}
                           </span>
                         </div>
                       )}
@@ -213,7 +209,7 @@ export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress
                         <div className="text-sm">
                           <span className="text-muted-foreground">Risk: </span>
                           <span className="font-semibold text-red-600">
-                            -{hlService.formatUsdValue(expectedPnL.totalExpectedLoss, 2)}
+                            -{formatUsdValue(expectedPnL.totalExpectedLoss, 2)}
                           </span>
                         </div>
                       )}
@@ -223,16 +219,22 @@ export const BalanceDisplay = React.memo(function BalanceDisplay({ walletAddress
               )}
               
               {/* Position cards */}
-              {balances.perpetualPositions.map((position, index) => (
-                <PositionCard
-                  key={index}
-                  position={position}
-                  orders={balances.orders}
-                  takerFee={settings.takerFee}
-                  makerFee={settings.makerFee}
-                  accountValue={balances.accountValue}
-                />
-              ))}
+              {balances.perpetualPositions.map((position, index) => {
+                const analysis = expectedPnL?.positionAnalysis?.find(
+                  a => a.coin === position.coin
+                );
+                return (
+                  <PositionCard
+                    key={index}
+                    position={position}
+                    orders={balances.orders}
+                    takerFee={settings.takerFee}
+                    makerFee={settings.makerFee}
+                    accountValue={balances.accountValue}
+                    analysis={analysis}
+                  />
+                );
+              })}
             </div>
           </CardContent>
         </Card>

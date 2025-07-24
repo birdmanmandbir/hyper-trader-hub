@@ -1,6 +1,6 @@
 import * as React from "react";
-import { useHyperliquidService } from "~/stores/hyperliquidStore";
 import { useRealtimePnL } from "~/hooks/useRealtimePnL";
+import { formatUsdValue } from "~/lib/formatting";
 
 interface Position {
   coin: string;
@@ -15,7 +15,6 @@ interface RealtimeTotalValueProps {
 }
 
 export function RealtimeTotalValue({ baseAccountValue, positions }: RealtimeTotalValueProps) {
-  const hlService = useHyperliquidService();
   const { totalPnL } = useRealtimePnL(positions);
   
   // Calculate the old unrealized P&L from positions
@@ -40,11 +39,11 @@ export function RealtimeTotalValue({ baseAccountValue, positions }: RealtimeTota
     <div>
       <p className="text-sm text-muted-foreground">Perps Value (Live)</p>
       <p className="text-2xl font-bold">
-        {hlService.formatUsdValue(realtimeTotalValue)}
+        {formatUsdValue(realtimeTotalValue)}
       </p>
       {Math.abs(difference) > 0.01 && (
         <p className={`text-xs ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-          {isPositive ? '+' : ''}{hlService.formatUsdValue(difference, 2)} from last update
+          {isPositive ? '+' : ''}{formatUsdValue(difference, 2)} from last update
         </p>
       )}
     </div>
