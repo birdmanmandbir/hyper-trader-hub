@@ -75,7 +75,7 @@ export function calculatePositionAnalysis(
     const positionValue = entryPrice * positionSize;
     
     // Entry fees (taker fee for market entry)
-    const entryFee = positionValue * (settings.takerFee / 10000);
+    const entryFee = positionValue * (settings.takerFee / 100);
     
     let positionExpectedProfit = 0;
     let positionExpectedLoss = 0;
@@ -104,7 +104,7 @@ export function calculatePositionAnalysis(
         const tpProfit = tpProfitPerCoin * tpSize;
         
         // Calculate exit fee for this TP order
-        const exitFee = tpSize * tpPrice * (settings.makerFee / 10000);
+        const exitFee = tpSize * tpPrice * (settings.makerFee / 100);
         
         // Proportional entry fee for this TP order
         const proportionalEntryFee = entryFee * (tpSize / positionSize);
@@ -153,7 +153,7 @@ export function calculatePositionAnalysis(
         const slLossBeforeFees = slLossPerCoin * positionSize;
         
         // Exit fee for SL (taker fee for stop market)
-        const slExitFee = positionSize * slPrice * (settings.takerFee / 10000);
+        const slExitFee = positionSize * slPrice * (settings.takerFee / 100);
         
         // Total SL impact
         const totalSlLoss = slLossBeforeFees < 0 

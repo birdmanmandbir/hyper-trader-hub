@@ -8,7 +8,7 @@ This is a React Router v7 application built with TypeScript for Hyperliquid user
 
 ### Purpose
 Hyper Trader Hub provides Hyperliquid traders with tools to:
-- Check perpetual and spot balances
+- Check perpetual balances and positions
 - Set daily trading goals
 - Track profit/loss history in a calendar view
 - Monitor trading performance over time
@@ -91,18 +91,20 @@ The `~/*` alias is configured in both TypeScript and Vite configs. Always use `~
 ## Hyperliquid Integration Notes
 
 ### API Usage
-- Use Hyperliquid API to fetch user balances, positions, and trading history
-- API calls should be made from loader functions or client-side hooks
-- Consider rate limiting and error handling for API requests
+- **Server-side only**: Hyperliquid SDK (@nktkas/hyperliquid) is used only on the server side to reduce client bundle size
+- **Client-side formatting**: Use the formatting library (`~/lib/formatting`) for all client-side display formatting
+- API calls should be made from loader functions in server-side code
+- Position analysis calculations are performed server-side for consistency
+- Request coalescing and caching (30-second TTL) prevent excessive API calls
 
 ### Data Storage
 - User wallet addresses are stored in localStorage
 - No backend authentication required - wallet address serves as user identifier
-- Consider implementing data caching to minimize API calls
+- Balance data is cached server-side to minimize API calls
 
 ### Key Data Points
-- Perpetual positions and balances
-- Spot balances
+- Perpetual positions and balances (spot and staking features have been removed)
+- Position analysis with entry/exit fees, TP/SL calculations
 - Historical P&L data for calendar view
 - Daily goal tracking (stored locally)
 
@@ -162,6 +164,47 @@ const [settings] = useLocalStorage<AdvancedSettings>(
   DEFAULT_ADVANCED_SETTINGS
 );
 ```
+
+## Formatting Library
+
+The project uses a client-side formatting library at `app/lib/formatting.ts` that provides consistent formatting for display values:
+
+```typescript
+import { formatUsdValue, formatPrice, formatPercentage, formatLeverage } from "~/lib/formatting";
+
+// Format USD values with appropriate decimals
+formatUsdValue(1234.56) // "$1,234.56"
+formatUsdValue(0.0123, 4) // "$0.0123"
+
+// Format prices based on value magnitude
+formatPrice(50000) // "50,000"
+formatPrice(0.00001234) // "0.00001234"
+
+// Format percentages
+formatPercentage(0.0456) // "4.56%"
+formatPercentage(-0.123, 1) // "-12.3%"
+
+// Format leverage
+formatLeverage(5.5) // "5.5x"
+```
+
+## Server-Side Services
+
+### Balance Service (`app/services/balance.server.ts`)
+- Fetches balance data from Hyperliquid API
+- Implements request coalescing and caching
+- Calculates position analysis when positions exist
+- Returns consolidated data including balance, orders, and analysis
+
+### Position Analysis (`app/services/position-analysis.server.ts`)
+- Calculates detailed position analysis including:
+  - Entry and exit fees
+  - Take profit analysis with net profits
+  - Stop loss analysis with risk calculations
+  - Visualization data for charts
+  - Risk:Reward ratios and breakeven percentages
+- All calculations are done server-side for consistency
+- Fee calculations: `size * price * (fee / 100)` where fee is stored as percentage value (e.g., 0.0450 for 0.0450%)
 
 ## Database Notes
 - Never write migration SQL, let Drizzle Kit do it

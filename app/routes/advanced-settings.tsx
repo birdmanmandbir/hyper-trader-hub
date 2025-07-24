@@ -22,7 +22,7 @@ export async function loader({ request, context }: LoaderFunctionArgs) {
   
   // Parse settings or use defaults
   const advancedSettings = settings?.advancedSettings
-    ? JSON.parse(settings.advancedSettings) as AdvancedSettings
+    ? { ...DEFAULT_ADVANCED_SETTINGS, ...JSON.parse(settings.advancedSettings) } as AdvancedSettings
     : DEFAULT_ADVANCED_SETTINGS;
   
   return {
@@ -79,7 +79,17 @@ export default function AdvancedSettings() {
   const { advancedSettings } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
-  const [tempSettings, setTempSettings] = React.useState(advancedSettings);
+  
+  // Ensure all required properties exist with proper defaults
+  const safeSettings = React.useMemo(() => ({
+    ...DEFAULT_ADVANCED_SETTINGS,
+    ...advancedSettings,
+    leverageMap: { ...DEFAULT_ADVANCED_SETTINGS.leverageMap, ...(advancedSettings.leverageMap || {}) },
+    preferredTradingTimes: advancedSettings.preferredTradingTimes || [],
+    avoidedTradingTimes: advancedSettings.avoidedTradingTimes || []
+  }), [advancedSettings]);
+  
+  const [tempSettings, setTempSettings] = React.useState(safeSettings);
   const resetFormRef = React.useRef<HTMLFormElement>(null);
   
   // Show toast on successful action
