@@ -85,6 +85,46 @@ export class BalanceService {
 }
 
 /**
+ * Calculate risk metrics for positions in loss
+ */
+export function calculateRiskMetrics(balance: BalanceInfo) {
+  if (!balance || balance.perpetualPositions.length === 0) {
+    return null;
+  }
+
+  // Calculate total unrealized P&L from all positions
+  const totalUnrealizedPnL = balance.perpetualPositions.reduce((sum, pos) => 
+    sum + parseFloat(pos.unrealizedPnl || "0"), 0
+  );
+  
+  // Current account value already includes unrealized P&L
+  const currentAccountValue = parseFloat(balance.accountValue);
+  
+  // Initial balance (before unrealized P&L) = current value - unrealized P&L
+  // This is the balance you would have if you closed all positions at entry price
+  const initialBalance = currentAccountValue - totalUnrealizedPnL;
+  
+  if (totalUnrealizedPnL < 0) {
+    // Loss percentage = |loss| / initial balance
+    const lossPercentage = Math.abs(totalUnrealizedPnL) / initialBalance;
+    
+    // Recovery percentage = |loss| / current balance
+    const recoveryPercentage = Math.abs(totalUnrealizedPnL) / currentAccountValue;
+    
+    return {
+      isInLoss: true,
+      unrealizedPnL: totalUnrealizedPnL,
+      lossPercentage,
+      recoveryPercentage,
+      currentValue: currentAccountValue,
+      initialValue: initialBalance
+    };
+  }
+  
+  return null;
+}
+
+/**
  * Loader helper to get balance data with position analysis
  */
 export async function getBalanceData(
@@ -124,6 +164,9 @@ export async function getBalanceData(
   const leverage = accountValue > 0 ? notionalPosition / accountValue : 0;
   const marginUsagePercent = accountValue > 0 ? (marginUsed / accountValue) * 100 : 0;
   
+  // Calculate risk metrics
+  const riskMetrics = calculateRiskMetrics(balance);
+  
   return {
     balance,
     dailyStartBalance,
@@ -135,6 +178,7 @@ export async function getBalanceData(
       marginUsagePercent,
       marginUsageFormatted: `${marginUsagePercent.toFixed(1)}%`,
       hasPositions: balance.perpetualPositions.length > 0
-    }
+    },
+    riskMetrics
   };
 }

@@ -8,7 +8,9 @@ import { getUserSettings } from "~/db/client.server";
 import { getDb } from "~/db/client.server";
 import { useAutoRefresh } from "~/hooks/useAutoRefresh";
 import { useRealtimePnL } from "~/hooks/useRealtimePnL";
-import { formatUsdValue } from "~/lib/formatting";
+import { formatUsdValue, formatPercentage } from "~/lib/formatting";
+import { Alert, AlertDescription } from "~/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 export function meta({ }: Route.MetaArgs) {
   return [
@@ -37,8 +39,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const settings = await getUserSettings(db, userAddress);
   const timezoneOffset = settings?.timezoneOffset || 0;
 
-  // Get balance data with position analysis
-  const { balance, dailyStartBalance, timestamp, positionAnalysis, calculated } = await getBalanceData(
+  // Get balance data with position analysis and risk metrics
+  const { balance, dailyStartBalance, timestamp, positionAnalysis, calculated, riskMetrics } = await getBalanceData(
     context.cloudflare.env,
     userAddress,
     timezoneOffset
@@ -52,12 +54,13 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     settings,
     expectedPnL: positionAnalysis,
     calculated,
+    riskMetrics,
   };
 }
 
 
 export default function Home() {
-  const { userAddress, balance, settings, expectedPnL, calculated } = useLoaderData<typeof loader>();
+  const { userAddress, balance, settings, expectedPnL, calculated, riskMetrics } = useLoaderData<typeof loader>();
 
   // Show welcome message when not connected
   if (!userAddress) {
@@ -105,8 +108,14 @@ export default function Home() {
         const pnlSign = realtimePnL >= 0 ? '+' : '';
         const pnlFormatted = formatUsdValue(realtimePnL, 2).replace('$', '');
         const valueFormatted = formatUsdValue(realtimeTotalValue).replace('$', '');
+        
+        // Add loss percentage if available
+        let extraInfo = '';
+        if (riskMetrics && riskMetrics.isInLoss) {
+          extraInfo += ` | -${formatPercentage(riskMetrics.lossPercentage * 100, 1)}`;
+        }
 
-        document.title = `${pnlSign}$${pnlFormatted} | $${valueFormatted} - HTH`;
+        document.title = `${pnlSign}$${pnlFormatted} | $${valueFormatted}${extraInfo} - HTH`;
       } else if (realtimeTotalValue > 0) {
         // No positions but has account value
         const valueFormatted = formatUsdValue(realtimeTotalValue).replace('$', '');
@@ -117,7 +126,7 @@ export default function Home() {
     } else {
       document.title = "Hyper Trader Hub";
     }
-  }, [balance, realtimePnL, realtimeTotalValue]);
+  }, [balance, realtimePnL, realtimeTotalValue, riskMetrics, calculated]);
 
 
   return (
@@ -135,6 +144,25 @@ export default function Home() {
           )}
         </div>
       </header>
+
+      {/* Risk Notice - Show when in loss */}
+      {riskMetrics && riskMetrics.isInLoss && (
+        <div className="w-full max-w-4xl mx-auto mb-6">
+          <Alert className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
+            <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <AlertDescription className="text-amber-800 dark:text-amber-200">
+              <div className="space-y-1">
+                <p className="font-medium">
+                  Risk Notice: You have lost {formatPercentage(riskMetrics.lossPercentage * 100)} of your balance
+                </p>
+                <p className="text-sm">
+                  You will need to make {formatPercentage(riskMetrics.recoveryPercentage * 100)} profit to recover to your initial balance
+                </p>
+              </div>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       <BalanceDisplay
         walletAddress={userAddress}
