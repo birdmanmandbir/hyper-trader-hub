@@ -6,4 +6,5 @@ export default [
   route("advanced-settings", "routes/advanced-settings.tsx"),
   route("tips", "routes/tips.tsx"),
   route("checklist", "routes/checklist.tsx"),
+  route("api/auth/*", "routes/api.auth.$.tsx"),
 ] satisfies RouteConfig;

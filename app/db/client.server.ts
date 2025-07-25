@@ -1,7 +1,6 @@
 import { drizzle } from "drizzle-orm/d1";
 import { eq, and, desc, gt } from "drizzle-orm";
 import * as schema from "./schema";
-import type { BalanceInfo } from "~/lib/hyperliquid";
 
 export function getDb(env: Env) {
   return drizzle(env.DB, { schema });
@@ -12,18 +11,18 @@ export async function getUserSettings(db: ReturnType<typeof getDb>, userAddress:
   if (!userAddress) {
     return null;
   }
-  
+
   const result = await db
     .select()
     .from(schema.userSettings)
     .where(eq(schema.userSettings.userAddress, userAddress))
     .limit(1);
-  
+
   return result[0] || null;
 }
 
 export async function getDailyBalance(
-  db: ReturnType<typeof getDb>, 
+  db: ReturnType<typeof getDb>,
   userAddress: string,
   userDate: string
 ) {
@@ -37,7 +36,7 @@ export async function getDailyBalance(
       )
     )
     .limit(1);
-  
+
   return result[0] || null;
 }
 
@@ -51,7 +50,7 @@ export async function getLatestPositionSnapshot(
     .where(eq(schema.positionSnapshots.userAddress, userAddress))
     .orderBy(desc(schema.positionSnapshots.snapshotTime))
     .limit(1);
-  
+
   return result[0] || null;
 }
 
@@ -136,7 +135,7 @@ export async function createUserSession(
 ): Promise<string> {
   const sessionId = crypto.randomUUID();
   const expiresAt = Math.floor(Date.now() / 1000) + (30 * 24 * 60 * 60); // 30 days
-  
+
   await db
     .insert(schema.userSessions)
     .values({
@@ -144,7 +143,7 @@ export async function createUserSession(
       userAddress,
       expiresAt,
     });
-  
+
   return sessionId;
 }
 
@@ -162,7 +161,7 @@ export async function getUserSession(
       )
     )
     .limit(1);
-  
+
   return result[0] || null;
 }
 
@@ -175,9 +174,9 @@ export async function getUserChecklists(
     .select()
     .from(schema.userChecklists)
     .where(eq(schema.userChecklists.userAddress, userAddress));
-  
+
   const checklists = { entry: [], exit: [] };
-  
+
   for (const row of result) {
     try {
       checklists[row.checklistType as 'entry' | 'exit'] = JSON.parse(row.items);
@@ -185,7 +184,7 @@ export async function getUserChecklists(
       // Invalid JSON, use empty array
     }
   }
-  
+
   return checklists;
 }
 

@@ -21,7 +21,7 @@ export function findLocalD1Database() {
 }
 
 export default defineConfig({
-  schema: ['./app/db/schema.ts', './app/db/auth-schema.ts'],
+  schema: './app/db/schema/index.ts',
   out: './drizzle',
   dialect: 'sqlite',
   dbCredentials: {

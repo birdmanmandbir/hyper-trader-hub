@@ -12,7 +12,7 @@
     "typecheck": "bun run cf-typegen && react-router typegen && tsc",
     "db:generate": "drizzle-kit generate --config drizzle-dev.config.ts",
     "db:generate:prod": "drizzle-kit generate --config drizzle-prod.config.ts",
-    "db:generate:auth": "bunx @better-auth/cli generate --config ./auth.config.ts --output app/db/auth-schema.ts",
+    "db:generate:auth": "bunx @better-auth/cli generate --config ./auth.config.ts --output app/db/schema/auth.ts",
     "db:migrate": "drizzle-kit migrate --config drizzle-dev.config.ts",
     "db:migrate:prod": "drizzle-kit migrate --config drizzle-prod.config.ts",
     "db:push": "drizzle-kit push --config drizzle-dev.config.ts",
