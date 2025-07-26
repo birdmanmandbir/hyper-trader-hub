@@ -1,6 +1,6 @@
 # Hyper Trader Hub
 
-A comprehensive portfolio tracker and trading assistant for Hyperliquid DEX users. Track your balances, monitor positions, set daily targets, and calculate optimal leverage - all in one place.
+A comprehensive perpetuals trading assistant for Hyperliquid DEX users. Track your perps positions, monitor P&L, set daily targets, and calculate optimal leverage - all in one place.
 
 ![Hyper Trader Hub](https://img.shields.io/badge/Hyperliquid-Trading%20Assistant-blue)
 ![React Router](https://img.shields.io/badge/React%20Router-v7-red)
@@ -10,9 +10,9 @@ A comprehensive portfolio tracker and trading assistant for Hyperliquid DEX user
 ## 🚀 Features
 
 ### Portfolio Overview
-- **Real-time Balance Tracking**: Monitor your total portfolio value across perps, spot, and staking
+- **Real-time Balance Tracking**: Monitor your total portfolio value and perpetual positions
 - **Automatic Updates**: Balances refresh every 30 seconds with countdown timer
-- **Multi-Asset Support**: Track perpetual positions, spot balances, and HYPE staking
+- **Perpetuals Focus**: Track all your perps positions with detailed analytics
 - **Leverage Monitoring**: Visual indicators for current leverage and margin usage
 - **Position Details**: View entry prices, P&L, and ROE for all positions
 
@@ -32,20 +32,22 @@ A comprehensive portfolio tracker and trading assistant for Hyperliquid DEX user
 - **Win Rate Analysis**: Minimum win rate needed to be profitable
 
 ### Advanced Features
-- **Staking Balance**: Track staked HYPE and pending withdrawals
+- **User Authentication**: Secure authentication with Better Auth
+- **Cloud Storage**: User data stored in Cloudflare D1 database
 - **Fee Configuration**: Customize taker (0.04%) and maker (0.012%) fees
-- **Local Storage**: All settings persist across sessions
-- **No Backend Required**: Direct connection to Hyperliquid API
+- **Backend API**: Cloudflare Workers for server-side processing
 - **Mobile Responsive**: Works seamlessly on all devices
 
 ## 🛠️ Tech Stack
 
-- **Framework**: React Router v7 (SPA mode)
+- **Framework**: React Router v7 with SSR
 - **Language**: TypeScript
 - **Styling**: TailwindCSS v4 + shadcn/ui
 - **API**: @nktkas/hyperliquid SDK
 - **Build Tool**: Vite + Bun
-- **Deployment**: Cloudflare Pages
+- **Backend**: Cloudflare Workers
+- **Database**: Cloudflare D1
+- **Auth**: Better Auth
 
 ## 📦 Installation
 
@@ -81,16 +83,23 @@ bun run start
 
 ## 🚀 Deployment
 
-### Cloudflare Pages (Recommended)
+### Cloudflare Workers
 
-#### Manual Deployment
 ```bash
-# Build the project
-bun run build
-
-# Deploy to Cloudflare Pages
-bunx wrangler pages deploy build/client --project-name=hyper-trader-hub
+# Deploy to Cloudflare Workers
+bun run deploy
 ```
+
+#### Prerequisites
+1. Configure your Cloudflare account ID in `wrangler.jsonc`
+2. Set up D1 database:
+   ```bash
+   wrangler d1 create hyper-trader-hub-db
+   ```
+3. Run database migrations:
+   ```bash
+   bun run db:migrate:prod
+   ```
 
 #### Automatic Deployment (GitHub Actions)
 1. Add these secrets to your GitHub repository:
@@ -99,31 +108,24 @@ bunx wrangler pages deploy build/client --project-name=hyper-trader-hub
 
 2. Push to main branch - deployment happens automatically!
 
-### Other Platforms
-Since this is a static SPA, you can deploy to:
-- Vercel
-- Netlify  
-- GitHub Pages
-- AWS S3 + CloudFront
-- Any static hosting service
-
 ## 🔧 Configuration
 
 ### Environment Setup
-No environment variables required! The app connects directly to Hyperliquid's public API.
+1. Set up Better Auth secrets for authentication
+2. Configure D1 database bindings in `wrangler.jsonc`
+3. The app connects to Hyperliquid's public API server-side
 
 ### Custom Domain
-1. Go to Cloudflare Pages dashboard
-2. Select your project
-3. Go to "Custom domains"
-4. Add your domain
+1. Configure your domain in `wrangler.jsonc` routes section
+2. Or add custom domain via Cloudflare dashboard after deployment
 
 ## 📱 Usage
 
 ### Getting Started
 1. Visit the app
-2. Enter your Hyperliquid wallet address
-3. View your portfolio overview
+2. Sign in with your GitHub account (or other auth provider)
+3. Enter your Hyperliquid wallet address
+4. View your portfolio overview
 
 ### Setting Daily Targets
 1. Navigate to "Daily Target"
@@ -135,13 +137,14 @@ No environment variables required! The app connects directly to Hyperliquid's pu
 ### Advanced Settings
 1. Navigate to "Settings"
 2. Configure trading fees
-3. Settings persist in local storage
+3. Settings are stored in your user profile
 
 ## 🔐 Security
 
 - **No Private Keys**: Only public wallet addresses are used
-- **Local Storage Only**: All data stored in browser
-- **No Backend**: Direct API calls to Hyperliquid
+- **Secure Authentication**: Better Auth for user authentication
+- **Server-Side API Calls**: Hyperliquid API calls made from Cloudflare Workers
+- **Database Security**: User data stored securely in Cloudflare D1
 - **Read-Only**: No trading capabilities, only monitoring
 
 ## 🤝 Contributing
@@ -167,7 +170,7 @@ This project is open source and available under the [MIT License](LICENSE).
 
 - Create an issue for bug reports
 - Start a discussion for feature requests
-- Follow updates on [Twitter](https://twitter.com/yourusername)
+- Follow updates on [X (Twitter)](https://x.com/NeilBro02384732)
 
 ---
 
